@@ -14,21 +14,12 @@ Prosedur:
 Guvenlik: pervanesiz test et!
 """
 import time
-import board
-import busio
-from adafruit_pca9685 import PCA9685
-
 from config import PWM_NEUTRAL_US, PWM_MIN_US, PWM_MAX_US
 
 NEUTRAL_US = PWM_NEUTRAL_US
 FWD_US = PWM_NEUTRAL_US + 150
 REV_US = PWM_NEUTRAL_US - 150
 SPIN_S = 2.0
-
-i2c = busio.I2C(board.SCL, board.SDA)
-p = PCA9685(i2c, address=0x40)
-p.frequency = 50
-
 
 def us(ch, u):
     """Mikrosaniye -> 16-bit duty cycle (50Hz = 20000us periyot)."""
