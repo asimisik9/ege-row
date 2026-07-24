@@ -22,6 +22,17 @@ class PID:
         self._d = 0.0
         self._prev_t = None
 
+    def get_params(self):
+        """Mevcut PID katsayilarini dict olarak dondurur."""
+        return {"kp": self.kp, "ki": self.ki, "kd": self.kd}
+
+    def set_params(self, kp=None, ki=None, kd=None):
+        """PID katsayilarini canli (online) gunceller ve I birikimini sifirlar."""
+        if kp is not None: self.kp = float(kp)
+        if ki is not None: self.ki = float(ki)
+        if kd is not None: self.kd = float(kd)
+        self.reset()
+
     def update(self, error, now=None):
         """Hata girisine gore -out_limit..+out_limit arasi cikti dondurur."""
         now = time.monotonic() if now is None else now

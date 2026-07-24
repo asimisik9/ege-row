@@ -4,7 +4,7 @@ Amac: algoritma dogrulama - fizik hassasiyeti degil, mantik dogrulugu.
 Gercek zamandan hizli kosabilmesi icin monotonic saat yamalanir (run_sim.py).
 """
 import math
-from config import MOTOR_CHANNELS, PWM_NEUTRAL_US, MOTOR_DIRECTION
+from config import MOTOR_CHANNELS, PWM_NEUTRAL_US, PWM_MAX_US, MOTOR_DIRECTION
 
 
 class RovSimulator:
@@ -35,8 +35,9 @@ class RovSimulator:
         sonra konum/derinlik/heading'i entegre eder ve rota izine ekler."""
         us = {name: backend.last_us.get(ch, PWM_NEUTRAL_US)
               for name, ch in MOTOR_CHANNELS.items()}
-        # PWM -> -1..1 (yon duzeltmesini geri uygula)
-        val = {n: (us[n] - PWM_NEUTRAL_US) / 400.0 * MOTOR_DIRECTION[n] for n in us}
+        # PWM -> -1..1 (yon duzeltmesini geri uygula — config.py ile tam uyumlu)
+        span = max(1.0, float(PWM_MAX_US - PWM_NEUTRAL_US))
+        val = {n: (us[n] - PWM_NEUTRAL_US) / span * MOTOR_DIRECTION[n] for n in us}
 
         # motor PWM degerlerinden eksen komutlarini geri cikar (mixer'in tersi)
         surge_cmd = (val["H_L"] + val["H_R"]) / 2.0

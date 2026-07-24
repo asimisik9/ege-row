@@ -94,7 +94,7 @@ class Thrusters:
     # ---- yardimcilar ----
     @staticmethod
     def _to_us(value):
-        """-1..+1 -> PWM us. Kucuk degerler olu banda yuvarlanir."""
+        """-1..+1 -> PWM us. config.py'deki PWM_NEUTRAL_US etrafında simetrik ölçekler."""
         us = PWM_NEUTRAL_US + value * (PWM_MAX_US - PWM_NEUTRAL_US)
         if abs(us - PWM_NEUTRAL_US) < PWM_DEADBAND_US:
             us = PWM_NEUTRAL_US

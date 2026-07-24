@@ -18,9 +18,11 @@ import board
 import busio
 from adafruit_pca9685 import PCA9685
 
-FWD_US = 1600   # ileri test sinyali (donmezse 1650 dene)
-REV_US = 1400   # geri test sinyali
-NEUTRAL_US = 1500
+from config import PWM_NEUTRAL_US, PWM_MIN_US, PWM_MAX_US
+
+NEUTRAL_US = PWM_NEUTRAL_US
+FWD_US = PWM_NEUTRAL_US + 150
+REV_US = PWM_NEUTRAL_US - 150
 SPIN_S = 2.0
 
 i2c = busio.I2C(board.SCL, board.SDA)
@@ -38,7 +40,7 @@ channels = [int(x) for x in raw.replace(" ", "").split(",")]
 
 for ch in channels:
     us(ch, NEUTRAL_US)
-print(f"Kanallar {channels} notrde (1500us).")
+print(f"Kanallar {channels} notrde ({NEUTRAL_US}us).")
 input("ESC'lere guc ver, bip sesleri bitince Enter...")
 
 try:

@@ -1,3 +1,7 @@
 adafruit-circuitpython-pca9685
 adafruit-blinka
 smbus2
+opencv-python
+pyserial
+Jetson.GPIO; platform_machine == "aarch64"
+pygame==2.5.2
