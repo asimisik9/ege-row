@@ -249,6 +249,9 @@ if __name__ == "__main__":
         finally:
             thr.stop()
             estop.stop()
+    if "--manual" in args or "--no-sensors" in args:
+        from manual_drive import main as run_manual
+        run_manual()
         sys.exit(0)
 
     # Gorev secimi

@@ -53,11 +53,12 @@ python3 main.py --test-motors
 ```
 Her motor 2 sn %10 güçte döner. Doğru yön yoksa `config.py`'de `MOTOR_DIRECTION` düzelt.
 
-### 2e. E-stop GPIO testi
+### 2e. Sensörsüz Manuel Sürüş (Sensörler Takılı Değilse)
+HİÇBİR sensör (IMU, Derinlik, Kamera vb.) takılı değilken aracı sadece motorlarla sürmek için:
 ```bash
-python3 main.py --estop-test
+python3 manual_drive.py           # Veya: python3 main.py --manual
 ```
-`e` + Enter → yazılımsal tetikleme. Tüm motorlar durmalı. Donanımda mıknatısla test et.
+Bu modda Web GCS (`http://192.168.1.10:8000/`), PS3 Joystick ve Terminal klavye sürüşü aktiftir.
 
 ---
 
