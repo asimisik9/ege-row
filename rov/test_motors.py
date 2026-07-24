@@ -14,7 +14,7 @@ import sys
 import time
 
 from hal.thrusters import Thrusters, PCA9685Backend
-from config import MOTOR_CHANNELS
+from config import MOTOR_CHANNELS, PWM_NEUTRAL_US
 
 TEST_POWER = 0.10   # %10 guc - ilk test icin dusuk tut
 TEST_TIME_S = 2.0
@@ -24,7 +24,7 @@ def main():
     print("PCA9685'e baglaniliyor...")
     backend = PCA9685Backend()
     thr = Thrusters(backend)
-    print("Baglandi. Notr sinyal gonderiliyor (1500us).")
+    print(f"Baglandi. Notr sinyal gonderiliyor ({PWM_NEUTRAL_US}us).")
 
     input("ESC'lere GUC VER, bip seslerini bekle, sonra Enter'a bas...")
     thr.arm()
