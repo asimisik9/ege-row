@@ -20,10 +20,10 @@ Battery Pack (22.2V 6S4P, ASPİLSAN)
       └─► Jetson Xavier NX (I2C Bus 7 on 40-pin header)
             ├─► I2C ──► PCA9685 PWM Driver (0x40)
             │               ├─ CH0: V_FL (Front-Left Vertical)
-            │               ├─ CH1: V_FR (Front-Right Vertical)
-            │               ├─ CH2: V_RL (Rear-Left Vertical)
-            │               ├─ CH3: V_RR (Rear-Right Vertical)
-            │               ├─ CH4: H_L  (Left Horizontal)
+            │               ├─ CH1: V_RL (Rear-Left Vertical)
+            │               ├─ CH2: H_L  (Left Horizontal)
+            │               ├─ CH3: V_FR (Front-Right Vertical)
+            │               ├─ CH4: V_RR (Rear-Right Vertical)
             │               └─ CH5: H_R  (Right Horizontal)
             ├─► I2C ──► MPU-9250 IMU (0x68)
             │               └─► AK8963 Magnetometer (0x0C, via bypass)
@@ -89,10 +89,10 @@ Pin 25  ── GND         ── Common ground
 | PCA9685 Channel | Code Name | Physical Motor | Function |
 |-----------------|-----------|---------------|---------|
 | **CH 0** | `V_FL` | Front-Left | **Vertical** (depth/roll/pitch) |
-| **CH 1** | `V_FR` | Front-Right | **Vertical** (depth/roll/pitch) |
-| **CH 2** | `V_RL` | Rear-Left | **Vertical** (depth/roll/pitch) |
-| **CH 3** | `V_RR` | Rear-Right | **Vertical** (depth/roll/pitch) |
-| **CH 4** | `H_L` | Left side | **Horizontal** (surge/yaw) |
+| **CH 1** | `V_RL` | Rear-Left | **Vertical** (depth/roll/pitch) |
+| **CH 2** | `H_L` | Left side | **Horizontal** (surge/yaw) |
+| **CH 3** | `V_FR` | Front-Right | **Vertical** (depth/roll/pitch) |
+| **CH 4** | `V_RR` | Rear-Right | **Vertical** (depth/roll/pitch) |
 | **CH 5** | `H_R` | Right side | **Horizontal** (surge/yaw) |
 
 ### Connecting ESC Signal Wires to PCA9685

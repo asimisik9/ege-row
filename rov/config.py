@@ -18,10 +18,10 @@ SIM_MODE = True              # True: donanim yok, simulasyonla calis. Cihazda Fa
 #   H_L : sol yatay      H_R : sag yatay
 MOTOR_CHANNELS = {
     "V_FL": 0,
-    "V_FR": 1,
-    "V_RL": 2,
-    "V_RR": 3,
-    "H_L":  4,
+    "V_RL": 1,
+    "H_L":  2,
+    "V_FR": 3,
+    "V_RR": 4,
     "H_R":  5,
 }
 
