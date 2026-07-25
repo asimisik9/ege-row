@@ -26,11 +26,12 @@ MOTOR_CHANNELS = {
 }
 
 # PWM sinyal parametreleri (her iki yone simetrik — tek merkezden yonetilir)
-PWM_NEUTRAL_US  = 1750        # ESC notr sinyali (mikrosaniye)
-PWM_RANGE_US    = 250         # Notrden her iki yone esit PWM sapma miktari (+/- 250us)
-PWM_MIN_US      = PWM_NEUTRAL_US - PWM_RANGE_US   # 1500 us (otomatik hesap)
-PWM_MAX_US      = PWM_NEUTRAL_US + PWM_RANGE_US   # 2000 us (otomatik hesap)
-PWM_DEADBAND_US = 25          # notr etrafinda olu bant
+PCA9685_REF_CLOCK_HZ = 25_000_000 # PCA9685 dahili saat frekansi (Hz). Sapma varsa calibrate_escs.py ile ayarlanir.
+PWM_NEUTRAL_US  = 1500        # ESC standart notr sinyali (mikrosaniye)
+PWM_RANGE_US    = 400         # Notrden her iki yone esit PWM sapma miktari (+/- 400us -> 1100..1900us)
+PWM_MIN_US      = PWM_NEUTRAL_US - PWM_RANGE_US   # 1100 us (otomatik hesap)
+PWM_MAX_US      = PWM_NEUTRAL_US + PWM_RANGE_US   # 1900 us (otomatik hesap)
+PWM_DEADBAND_US = 45          # notr etrafinda olu bant (titremeyi ve bip sesini engeller)
 THRUST_LIMIT    = 0.8         # motor guc siniri 0..1 (baslangicta dusuk tut!)
 SLEW_RATE       = 2.0         # birim/sn - motor komutu degisim hizi siniri (ani gaz onler)
 

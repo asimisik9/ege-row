@@ -9,7 +9,7 @@ Guvenlik: arm edilmeden komut gonderilmez; stop() her kosulda notre ceker.
 """
 import time
 from config import (MOTOR_CHANNELS, PWM_NEUTRAL_US, PWM_MIN_US, PWM_MAX_US,
-                    PWM_DEADBAND_US, SLEW_RATE)
+                    PWM_DEADBAND_US, SLEW_RATE, PCA9685_REF_CLOCK_HZ)
 
 
 # ------------------------------------------------------------ backendler
@@ -35,7 +35,7 @@ class PCA9685Backend:
         import board, busio
         from adafruit_pca9685 import PCA9685
         i2c = busio.I2C(board.SCL, board.SDA)
-        self.dev = PCA9685(i2c, address=address)
+        self.dev = PCA9685(i2c, address=address, reference_clock_speed=PCA9685_REF_CLOCK_HZ)
         self.dev.frequency = freq_hz
         self.period_us = 1_000_000 / freq_hz
 
