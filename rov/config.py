@@ -26,7 +26,7 @@ MOTOR_CHANNELS = {
 }
 
 # PWM sinyal parametreleri (her iki yone simetrik — tek merkezden yonetilir)
-PCA9685_REF_CLOCK_HZ = 25_000_000 # PCA9685 dahili saat frekansi (Hz). Sapma varsa calibrate_escs.py ile ayarlanir.
+PCA9685_REF_CLOCK_HZ = 29_040_000 # PCA9685 dahili saat frekansi (58.08 Hz olcumune gore 29.04 MHz olarak kalibre edildi)
 PWM_NEUTRAL_US  = 1500        # ESC standart notr sinyali (mikrosaniye)
 PWM_RANGE_US    = 400         # Notrden her iki yone esit PWM sapma miktari (+/- 400us -> 1100..1900us)
 PWM_MIN_US      = PWM_NEUTRAL_US - PWM_RANGE_US   # 1100 us (otomatik hesap)
