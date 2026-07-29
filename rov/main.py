@@ -24,18 +24,57 @@ from comms.web_server import WebGCS
 
 # ──────────────────────────────────────── yardimcilar
 def build_system():
-    """Gercek donanim baglantilarini kurar."""
+    """Donanim baglantilarini kurar; donanim veya sensör yoksa Mock nesnelerine yumusak gecis yapar."""
+    from hal.thrusters import Thrusters, PCA9685Backend, MockBackend
+    from sensors.imu import Mpu9250, MockImu, Orientation
+    from sensors.depth import Ms5837, MockDepth
+    from sim.simulator import RovSimulator
+
     if SIM_MODE:
-        raise SystemExit(
-            "config.SIM_MODE=True. Cihazda calistirmak icin False yap ya da\n"
-            "simulasyon icin: python3 run_sim.py"
-        )
-    from hal.thrusters import Thrusters, PCA9685Backend
-    from sensors.imu import Mpu9250, Orientation
-    from sensors.depth import Ms5837
-    thr = Thrusters(PCA9685Backend())
-    ori = Orientation(Mpu9250())
-    depth = Ms5837()
+        import threading
+        sim = RovSimulator()
+        backend = MockBackend()
+        thr = Thrusters(backend)
+        ori = Orientation(MockImu(sim))
+        depth = MockDepth(sim)
+
+        def _sim_loop():
+            dt = 1.0 / LOOP_HZ
+            while True:
+                sim.step(backend, dt)
+                time.sleep(dt)
+
+        t = threading.Thread(target=_sim_loop, daemon=True)
+        t.start()
+        print("[SIM] 3-DOF ROV Fizik Simulasyonu ve Mock Sensörler Aktif!")
+        return thr, ori, depth
+
+    # Gerçek Donanım Bağlantı Denemeleri
+    try:
+        thr_backend = PCA9685Backend()
+        print("[OK] PCA9685 Motor Sürücü Bağlandı.")
+    except Exception as e:
+        print(f"[UYARI] PCA9685 Sürücü Bağlanamadı ({e}), MockBackend Kullanılıyor.")
+        thr_backend = MockBackend()
+
+    thr = Thrusters(thr_backend)
+
+    try:
+        imu_sensor = Mpu9250()
+        print("[OK] MPU-9250 IMU Sensörü Bağlandı.")
+    except Exception as e:
+        print(f"[UYARI] MPU-9250 IMU Bağlanamadı ({e}), MockIMU Kullanılıyor.")
+        imu_sensor = MockImu()
+
+    ori = Orientation(imu_sensor)
+
+    try:
+        depth_sensor = Ms5837()
+        print("[OK] MS5837 Derinlik Sensörü Bağlandı.")
+    except Exception as e:
+        print(f"[UYARI] MS5837 Derinlik Sensörü Bağlanamadı ({e}), MockDepth Kullanılıyor.")
+        depth_sensor = MockDepth()
+
     return thr, ori, depth
 
 

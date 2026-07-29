@@ -32,19 +32,12 @@ except ImportError:
     _HW_OK = False
     print("[UYARI] PCA9685 kütüphanesi bulunamadı! Simülasyon modunda çalışıyor.")
 
-# ── PWM ve Kanal Ayarları
-NEUTRAL_US = 1750    # ESC Nötr Sinyali
-MAX_SPAN_US = 250    # Nötrden maks sapma (+/- 250us -> 1500..2000us)
-FREQ_HZ = 50         # ESC PWM Frekansı
+from config import (PWM_NEUTRAL_US, PWM_RANGE_US, FREQ_HZ,
+                    PCA9685_REF_CLOCK_HZ, MOTOR_CHANNELS)
 
-CHANNELS = {
-    "V_FL": 0,  # Ön-Sol Dikey
-    "V_FR": 1,  # Ön-Sağ Dikey
-    "V_RL": 2,  # Arka-Sol Dikey
-    "V_RR": 3,  # Arka-Sağ Dikey
-    "H_L" : 4,  # Sol Yatay
-    "H_R" : 5,  # Sağ Yatay
-}
+NEUTRAL_US = PWM_NEUTRAL_US
+MAX_SPAN_US = PWM_RANGE_US
+CHANNELS = MOTOR_CHANNELS
 
 
 class ThrusterDriver:
@@ -53,7 +46,7 @@ class ThrusterDriver:
         if _HW_OK:
             try:
                 i2c = busio.I2C(board.SCL, board.SDA)
-                self.dev = PCA9685(i2c, address=0x40)
+                self.dev = PCA9685(i2c, address=0x40, reference_clock_speed=PCA9685_REF_CLOCK_HZ)
                 self.dev.frequency = FREQ_HZ
                 print(f"[OK] PCA9685 bağlandı (0x40, {FREQ_HZ}Hz).")
             except Exception as e:
