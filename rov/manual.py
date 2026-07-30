@@ -32,13 +32,19 @@ except ImportError:
     _HW_OK = False
     print("[UYARI] PCA9685 kütüphanesi bulunamadı! Simülasyon modunda çalışıyor.")
 
-from config import (PWM_NEUTRAL_US, PWM_RANGE_US, FREQ_HZ,
-                    PCA9685_REF_CLOCK_HZ, MOTOR_CHANNELS, MOTOR_DIRECTION)
+# ── PWM ve Kanal Ayarları
+NEUTRAL_US = 1500    # ESC Nötr Sinyali
+MAX_SPAN_US = 500    # Nötrden maks sapma (+/- 250us -> 1500..2000us)
+FREQ_HZ = 50         # ESC PWM Frekansı
 
-NEUTRAL_US = PWM_NEUTRAL_US
-MAX_SPAN_US = PWM_RANGE_US
-CHANNELS = MOTOR_CHANNELS
-FREQ_HZ = 50
+CHANNELS = {
+    "V_FL": 0,
+    "V_RL": 1,
+    "H_L":  2,
+    "V_FR": 3,
+    "V_RR": 5,
+    "H_R":  4,
+}
 
 
 class ThrusterDriver:
@@ -47,7 +53,7 @@ class ThrusterDriver:
         if _HW_OK:
             try:
                 i2c = busio.I2C(board.SCL, board.SDA)
-                self.dev = PCA9685(i2c, address=0x40, reference_clock_speed=PCA9685_REF_CLOCK_HZ)
+                self.dev = PCA9685(i2c, address=0x40)
                 self.dev.frequency = FREQ_HZ
                 print(f"[OK] PCA9685 bağlandı (0x40, {FREQ_HZ}Hz).")
             except Exception as e:
@@ -72,7 +78,6 @@ class ThrusterDriver:
         """
         -1.0 ile +1.0 arasındaki eksen komutlarını motorlara dağıtır.
         """
-        
         # Yatay motor mikseri (Surge + Yaw + Sway)
         h_l = surge + yaw + sway
         h_r = surge - yaw - sway
@@ -93,9 +98,9 @@ class ThrusterDriver:
             "V_RR": max(-1.0, min(1.0, v_rr)),
         }
 
-        # PWM hesapla ve kanallara yaz (config.py MOTOR_DIRECTION yon duzeltmesini uygula)
+        # PWM hesapla ve kanallara yaz
         for name, ch in CHANNELS.items():
-            val = cmds[name] * MOTOR_DIRECTION.get(name, 1)
+            val = cmds[name]
             us_val = NEUTRAL_US + (val * MAX_SPAN_US)
             self.set_us(ch, us_val)
 

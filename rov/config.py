@@ -18,11 +18,11 @@ SIM_MODE = True              # True: donanim yok, simulasyonla calis. Cihazda Fa
 #   H_L : sol yatay      H_R : sag yatay
 MOTOR_CHANNELS = {
     "V_FL": 0,
-    "V_RL": 1,
-    "H_L":  2,
     "V_FR": 3,
-    "V_RR": 4,
-    "H_R":  5,
+    "V_RL": 1,
+    "V_RR": 5,
+    "H_L":  2,
+    "H_R":  4,
 }
 
 # PWM sinyal parametreleri (her iki yone simetrik — tek merkezden yonetilir)
@@ -37,8 +37,8 @@ SLEW_RATE       = 2.0         # birim/sn - motor komutu degisim hizi siniri (ani
 
 # Pervane yonu duzeltmeleri: ters donen motor icin -1 yaz.
 MOTOR_DIRECTION = {
-    "V_FL": 1, "V_FR": 1, "V_RL": 1, "V_RR": 1,
-    "H_L": 1, "H_R": 1,
+    "V_FL": -1, "V_FR": -1, "V_RL": -1, "V_RR": -1,
+    "H_L": -1, "H_R": -1,
 }
 
 # ---------------------------------------------------------------- PID katsayilari
