@@ -65,7 +65,7 @@ MISSION = dict(
 )
 
 # ---------------------------------------------------------------- sensorler (KTR donanimi)
-I2C_BUS = 1                  # Pin 27 (SDA) / Pin 28 (SCL) -> Jetson I2C Bus 1
+I2C_BUS = 8                  # Tüm cihazlar (0x0C, 0x40, 0x68, 0x76) Bus 8 üzerinde bulundu (Pin 3/5)
 IMU_ADDR = 0x68              # MPU-9250
 MAG_ADDR = 0x0C              # AK8963 (MPU-9250 icindeki manyetometre)
 DEPTH_ADDR = 0x76            # MS5837-30BA

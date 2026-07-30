@@ -30,15 +30,22 @@ def main():
     print("-----------------------------------------------------------------")
 
     print("\nMPU-9250 IMU sensörüne bağlanılıyor...")
-    try:
-        mpu = Mpu9250()
-        ori = Orientation(mpu)
-        print("[OK] MPU-9250 ve AK8963 Manyetometre BAŞARIYLA BAĞLANDI!")
-    except Exception as e:
-        print(f"[HATA] IMU Sensörüne bağlanılamadı: {e}")
+    mpu = None
+    for b in [I2C_BUS, 8, 7, 1, 0, 2, 3]:
+        try:
+            mpu = Mpu9250(bus_num=b)
+            ori = Orientation(mpu)
+            print(f"[OK] MPU-9250 ve AK8963 Manyetometre I2C Bus {b} (0x68) üzerinde BAŞARIYLA BAĞLANDI!")
+            break
+        except Exception:
+            continue
+
+    if mpu is None:
+        print(f"[HATA] MPU-9250 IMU Sensörüne hiçbir I2C busunda (8, 7, 1, 0) bağlanılamadı!")
         print("Kontrol edin:")
-        print(f"  1. 'i2cdetect -y {I2C_BUS}' çıktısında 0x68 (MPU) görünüyor mu?")
-        print("  2. SDA / SCL ve 3.3V / GND kabloları bağlı mı?")
+        print("  1. IMU kabloları HANGİ pinlere takılı? (Pin 3/5 mi yoksa Pin 27/28 mi?)")
+        print("  2. 'i2cdetect -y -r 8' ve 'i2cdetect -y -r 1' komutlarında 0x68 adresi görünüyor mu?")
+        print("  3. IMU üzerindeki VCC (3.3V) ve GND ışığı yanıyor mu?")
         sys.exit(1)
 
     print("\nFiltre ısınması için 1 saniye bekleniyor...")

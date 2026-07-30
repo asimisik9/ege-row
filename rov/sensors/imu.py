@@ -28,13 +28,26 @@ class Mpu9250:
     MAG_HXL = 0x03
     MAG_ST2 = 0x09
 
-    def __init__(self):
-        """MPU-9250'yi uyandirir, dahili AK8963 manyetometreye I2C bypass
-        acar ve manyetometreyi 16-bit/100Hz surekli olcum moduna alir."""
+    def __init__(self, bus_num=None):
+        """MPU-9250'yi uyandirir. Sensörün takılı olduğu I2C busunu (8, 7, 1, 0) otomatik bulur.
+        Dahili AK8963 manyetometreye I2C bypass acar ve 16-bit/100Hz moduna alir."""
         from smbus2 import SMBus
-        self.bus = SMBus(I2C_BUS)
-        self.bus.write_byte_data(IMU_ADDR, self.PWR_MGMT_1, 0x00)   # uyandir
-        time.sleep(0.1)
+        buses_to_try = [bus_num] if bus_num is not None else [I2C_BUS, 8, 7, 1, 0]
+        last_err = None
+        self.bus = None
+        for b in buses_to_try:
+            try:
+                bus = SMBus(b)
+                bus.write_byte_data(IMU_ADDR, self.PWR_MGMT_1, 0x00)   # uyandir
+                time.sleep(0.05)
+                self.bus = bus
+                print(f"[IMU] MPU-9250 I2C Bus {b} (0x68) üzerinde bağlandı.")
+                break
+            except Exception as e:
+                last_err = e
+        if self.bus is None:
+            raise RuntimeError(f"MPU-9250 IMU sensörüne bağlanılamadı (Denenen Buslar: {buses_to_try}): {last_err}")
+
         self.bus.write_byte_data(IMU_ADDR, self.INT_PIN_CFG, 0x02)  # mag'a bypass
         time.sleep(0.05)
         self.bus.write_byte_data(MAG_ADDR, self.MAG_CNTL1, 0x16)    # 16bit, 100Hz surekli
