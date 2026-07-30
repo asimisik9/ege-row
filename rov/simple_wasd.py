@@ -33,7 +33,7 @@ except ImportError:
     print("[UYARI] PCA9685 kütüphanesi bulunamadı! Simülasyon modunda çalışıyor.")
 
 from config import (PWM_NEUTRAL_US, PWM_RANGE_US, FREQ_HZ,
-                    PCA9685_REF_CLOCK_HZ, MOTOR_CHANNELS)
+                    PCA9685_REF_CLOCK_HZ, MOTOR_CHANNELS, MOTOR_DIRECTION)
 
 NEUTRAL_US = PWM_NEUTRAL_US
 MAX_SPAN_US = PWM_RANGE_US
@@ -93,7 +93,7 @@ class ThrusterDriver:
 
         # PWM hesapla ve kanallara yaz
         for name, ch in CHANNELS.items():
-            val = cmds[name]
+            val = cmds[name] * MOTOR_DIRECTION.get(name, 1)
             us_val = NEUTRAL_US + (val * MAX_SPAN_US)
             self.set_us(ch, us_val)
 
