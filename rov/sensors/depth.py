@@ -11,14 +11,25 @@ class Ms5837:
     CMD_CONV_D2 = 0x5A  # sicaklik, OSR=8192
     CMD_READ = 0x00
 
-    def __init__(self):
-        """I2C baglantisini acar, sensoru resetler ve fabrika kalibrasyon
-        katsayilarini (PROM, C[0..6]) okuyup saklar - basinc hesabinda
-        (read_pressure_mbar) bu katsayilar kullanilir."""
+    def __init__(self, bus_num=None):
+        """I2C baglantisini acar (Pin 27/28 icin Bus 1 veya config'deki I2C_BUS).
+        Sensoru resetler ve fabrika kalibrasyon katsayilarini okur."""
         from smbus2 import SMBus
-        self.bus = SMBus(I2C_BUS)
-        self.bus.write_byte(DEPTH_ADDR, self.CMD_RESET)
-        time.sleep(0.05)
+        buses_to_try = [bus_num] if bus_num is not None else [I2C_BUS, 1, 0, 8, 7]
+        last_err = None
+        self.bus = None
+        for b in buses_to_try:
+            try:
+                bus = SMBus(b)
+                bus.write_byte(DEPTH_ADDR, self.CMD_RESET)
+                time.sleep(0.05)
+                self.bus = bus
+                break
+            except Exception as e:
+                last_err = e
+        if self.bus is None:
+            raise RuntimeError(f"MS5837 sensörüne bağlanılamadı (Denenen Buslar: {buses_to_try}): {last_err}")
+
         self.C = []
         for i in range(7):
             d = self.bus.read_i2c_block_data(DEPTH_ADDR, self.CMD_PROM + 2 * i, 2)

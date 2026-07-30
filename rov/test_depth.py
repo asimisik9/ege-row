@@ -23,7 +23,7 @@ except ImportError:
     sys.exit(1)
 
 # I2C Ayarları
-I2C_BUSES_TO_TRY = [7, 8, 1, 0]  # Jetson Orin Nano pin 3/5 genelde Bus 7 veya Bus 8
+I2C_BUSES_TO_TRY = [1, 0, 8, 7, 2, 3, 4, 5, 6]  # Pin 27 (SDA) / Pin 28 (SCL) -> Bus 1 / Bus 0
 DEPTH_ADDR = 0x76                # MS5837-30BA varsayılan I2C adresi
 
 # MS5837 Komutları
