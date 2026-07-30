@@ -65,7 +65,7 @@ MISSION = dict(
 )
 
 # ---------------------------------------------------------------- sensorler (KTR donanimi)
-I2C_BUS = 7                  # Jetson Orin Nano: pin 3/5 -> genelde bus 7 (i2cdetect ile dogrula!)
+I2C_BUS = 8                  # Jetson Orin Nano: pin 3/5 (Bus 8 üzerinde bulundu)
 IMU_ADDR = 0x68              # MPU-9250
 MAG_ADDR = 0x0C              # AK8963 (MPU-9250 icindeki manyetometre)
 DEPTH_ADDR = 0x76            # MS5837-30BA

@@ -94,8 +94,8 @@ class MS5837Tester:
         Ham ADC verilerini okur ve datasheet 1. derece kompanzasyon formülüyle
         basınç (mbar) ve sıcaklık (°C) değerlerini hesaplar.
         """
-        D1 = self._convert(self.CMD_CONV_D1)  # Ham Basınç
-        D2 = self._convert(self.CMD_CONV_D2)  # Ham Sıcaklık
+        D1 = self._convert(CMD_CONV_D1)  # Ham Basınç
+        D2 = self._convert(CMD_CONV_D2)  # Ham Sıcaklık
 
         C = self.C
         dT = D2 - C[5] * 256
