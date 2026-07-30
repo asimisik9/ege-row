@@ -52,6 +52,14 @@ def main():
     print(f"{'Pusula (Heading)':<18} | {'Yunuslama (Pitch)':<19} | {'Yatış (Roll)':<15} | {'Dönüş Hızı (YawRate)':<20}")
     print("-" * 75)
 
+    max_samples = None
+    for arg in sys.argv[1:]:
+        if arg.startswith("--samples="):
+            max_samples = int(arg.split("=")[1])
+        elif arg == "--once":
+            max_samples = 1
+
+    sample_count = 0
     try:
         while True:
             hdg = ori.update()
@@ -59,14 +67,20 @@ def main():
             roll = ori.roll
             yaw_rate = ori.yaw_rate
 
-            # Terminal satırını dinamik güncelle (\r)
+            end_char = "\n" if max_samples is not None else "\r"
             sys.stdout.write(
-                f"\r  {hdg:6.1f}° (Pusula)     | "
+                f"  {hdg:6.1f}° (Heading)    | "
                 f"  {pitch:6.1f}° (Pitch)     | "
                 f"  {roll:6.1f}° (Roll)   | "
-                f"  {yaw_rate:6.2f} °/s        "
+                f"  {yaw_rate:6.2f} °/s{end_char}"
             )
             sys.stdout.flush()
+
+            sample_count += 1
+            if max_samples and sample_count >= max_samples:
+                print("\n[OK] İstenen sayıda okuma alındı.")
+                break
+
             time.sleep(0.05)  # 20 Hz canlı yayın
 
     except KeyboardInterrupt:
