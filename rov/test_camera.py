@@ -95,35 +95,50 @@ def test_camera():
     cap = None
     cam_type = "Bilinmiyor"
 
-    # 1. Deneme: CSI Kamera (nvarguscamerasrc)
+    # 1. Deneme: CSI Kamera (Sensor ID 0 ve Sensor ID 1 deneniyor)
     if CSI_CAMERA:
-        print(f"\n---> [CSI KAMERA] Sensor ID {CAM_SENSOR_ID} (GStreamer nvarguscamerasrc) açılıyor...")
-        pipeline = get_gstreamer_pipeline(CAM_SENSOR_ID, CAM_WIDTH, CAM_HEIGHT, CAM_FPS)
-        cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
-        cam_type = f"CSI MIPI Port (Sensor ID {CAM_SENSOR_ID})"
+        for sid in [CAM_SENSOR_ID, 1 if CAM_SENSOR_ID == 0 else 0]:
+            print(f"\n---> [CSI KAMERA] Sensor ID {sid} (GStreamer nvarguscamerasrc) deneniyor...")
+            pipeline = get_gstreamer_pipeline(sid, CAM_WIDTH, CAM_HEIGHT, CAM_FPS)
+            c = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
+            if c.isOpened():
+                # Gerçek kare okumayı test et
+                ret, test_f = c.read()
+                if ret and test_f is not None:
+                    cap = c
+                    cam_type = f"CSI MIPI Port (Sensor ID {sid})"
+                    print(f"[OK] CSI Kamera Sensor ID {sid} üzerinden görüntü alındı!")
+                    break
+                else:
+                    c.release()
 
     # 2. Deneme: Düşme durumunda USB Kamera (/dev/video0)
-    if cap is None or not cap.isOpened():
-        if CSI_CAMERA:
-            print("[UYARI] CSI kamera GStreamer ile açılamadı! USB Kamera (/dev/video0) deneniyor...")
-        else:
-            print("\n---> [USB KAMERA] /dev/video0 açılıyor...")
-        
-        cap = cv2.VideoCapture(0)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAM_WIDTH)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAM_HEIGHT)
-        cap.set(cv2.CAP_PROP_FPS, CAM_FPS)
-        cam_type = "USB Kamera (/dev/video0)"
+    if cap is None:
+        print("\n---> [USB KAMERA] /dev/video0 deneniyor...")
+        c = cv2.VideoCapture(0)
+        if c.isOpened():
+            c.set(cv2.CAP_PROP_FRAME_WIDTH, CAM_WIDTH)
+            c.set(cv2.CAP_PROP_FRAME_HEIGHT, CAM_HEIGHT)
+            c.set(cv2.CAP_PROP_FPS, CAM_FPS)
+            ret, test_f = c.read()
+            if ret and test_f is not None:
+                cap = c
+                cam_type = "USB Kamera (/dev/video0)"
+                print("[OK] USB Kamera (/dev/video0) üzerinden görüntü alındı!")
 
-    if not cap.isOpened():
-        print("\n[HATA] Hiçbir kamera açılamadı!")
-        print("Kontrol edin:")
-        print("  1. CSI şerit kablosu Jetson MIPI konnektörüne tam oturmuş ve kilitli mi?")
-        print("  2. Şerit kablonun mavi tarafı doğru yönü gösteriyor mu?")
-        print("  3. Jetson üzerinde 'ls /dev/video*' veya 'nvargus_nvraw' komutu ne çıktı veriyor?")
+    if cap is None:
+        print("\n[HATA] Hiçbir kameradan görüntü alınamadı!")
+        print("-----------------------------------------------------------------")
+        print("ÇÖZÜM ADIMLARI:")
+        print(" 1. NVIDIA Argus servisini yeniden başlatın (En sık çözüm!):")
+        print("    sudo systemctl restart nvargus-daemon")
+        print(" 2. Şerit kablo yönü: Kablonun mavi kısmının konnektörün kilit")
+        print("    mandalına doğru baktığından emin olun.")
+        print(" 3. Şerit kablonun Jetson MIPI yuvasına tam oturduğunu ve siyah")
+        print("    mandalın kilitlendiğini kontrol edin.")
+        print(" 4. USB webcam kullanıyorsanız config.py içinde CSI_CAMERA = False yapın.")
+        print("-----------------------------------------------------------------")
         sys.exit(1)
-
-    print(f"\n[OK] Kamera BAŞARIYLA AÇILDI! Tür: {cam_type}")
 
     # Argüman Kontrolleri
     save_snapshot = "--save" in sys.argv
