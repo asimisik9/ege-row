@@ -143,16 +143,30 @@ def main():
     print(f"{'Sıcaklık (°C)':<15} | {'Basınç (mbar)':<16} | {'Hesaplanan Derinlik (m)':<25}")
     print("-" * 65)
 
+    max_samples = None
+    for arg in sys.argv[1:]:
+        if arg.startswith("--samples="):
+            max_samples = int(arg.split("=")[1])
+        elif arg == "--once":
+            max_samples = 1
+
+    sample_count = 0
     try:
         while True:
             p_mbar, temp_c = tester.read_sensor()
             
             # Derinlik hesabı: 1 mbar ≈ 0.010197 m tatlı su (997 kg/m³)
-            # Karadayken p_mbar - surface_pressure ~ 0 olur
             p_diff = p_mbar - tester.surface_pressure_mbar
             depth_m = max(0.0, (p_diff * 100.0) / (997.0 * 9.81))
 
-            print(f" {temp_c:6.2f} °C        | {p_mbar:8.2f} mbar       | {depth_m:6.3f} m", end="\r")
+            end_char = "\n" if max_samples is not None else "\r"
+            print(f" {temp_c:6.2f} °C        | {p_mbar:8.2f} mbar       | {depth_m:6.3f} m", end=end_char, flush=True)
+            
+            sample_count += 1
+            if max_samples and sample_count >= max_samples:
+                print("\n[OK] İstenen sayıda okuma alındı.")
+                break
+
             time.sleep(0.2)  # 5Hz canlı yayın
 
     except KeyboardInterrupt:
