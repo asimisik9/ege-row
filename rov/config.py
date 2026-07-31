@@ -31,10 +31,20 @@ PCA9685_REF_CLOCK_HZ = 29_040_000 # PCA9685 dahili saat frekansi (58.08 Hz olcum
                                   # VERILMEZSE kart 50Hz yerine 58.1Hz'de calisir ve TUM darbeler %14 kisalir
                                   # (1500us -> ESC 1291us gorur = geri yon). Her yeni scriptte bunu gec!
 FREQ_HZ         = 50          # ESC PWM tasiyici frekansi (Hz) - tum backendler bunu kullanir
-PWM_NEUTRAL_US  = 1470        # ESC standart notr sinyali (mikrosaniye)
-PWM_RANGE_US    = 1000        # Notrden her iki yone esit PWM sapma miktari
-PWM_MIN_US      = PWM_NEUTRAL_US - PWM_RANGE_US   # 1100 us (otomatik hesap)
-PWM_MAX_US      = PWM_NEUTRAL_US + PWM_RANGE_US   # 1900 us (otomatik hesap)
+
+# ESC'nin FIZIKSEL sinirlari. Bunlar donanim gercegi, ayar degil - degistirmeyin.
+# calibrate_escs.py ESC EEPROM'una 1000-2000us araligini yaziyor.
+# Hicbir kod bu araligin disina darbe gonderemez (thrusters.py zorunlu kilar).
+ESC_ABS_MIN_US  = 1000        # ESC'nin anladigi en kisa darbe
+ESC_ABS_MAX_US  = 2000        # ESC'nin anladigi en uzun darbe
+
+PWM_NEUTRAL_US  = 1470        # ESC notr sinyali (mikrosaniye)
+# Notrden her iki yone esit sapma. TOPLAM genislik DEGIL, tek yondeki pay!
+# 1470 notr icin: asagi pay 1470-1000=470, yukari pay 2000-1470=530.
+# Simetrik kalmak icin kucuk olani secilir -> 470 => 1000..1940us.
+PWM_RANGE_US    = 470
+PWM_MIN_US      = PWM_NEUTRAL_US - PWM_RANGE_US   # 1000 us (otomatik hesap)
+PWM_MAX_US      = PWM_NEUTRAL_US + PWM_RANGE_US   # 1940 us (otomatik hesap)
 PWM_DEADBAND_US = 30          # notr etrafinda olu bant (titremeyi ve bip sesini engeller)
 THRUST_LIMIT    = 1.0         # motor guc siniri 0..1 (baslangicta dusuk tut!)
 SLEW_RATE       = 2.0         # birim/sn - motor komutu degisim hizi siniri (ani gaz onler)

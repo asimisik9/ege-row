@@ -22,7 +22,7 @@ import sys
 import time
 
 from config import (LOOP_HZ, PWM_NEUTRAL_US, PWM_RANGE_US, PWM_DEADBAND_US,
-                    THRUST_LIMIT, MOTOR_DIRECTION)
+                    THRUST_LIMIT, MOTOR_DIRECTION, ESC_ABS_MIN_US, ESC_ABS_MAX_US)
 from control.mixer import mix
 
 DIKEY_MOTORLAR = ("V_FL", "V_FR", "V_RL", "V_RR")
@@ -89,15 +89,27 @@ def main():
 
     thr = Thrusters(backend)
 
-    hedef_us = PWM_NEUTRAL_US + (heave * MOTOR_DIRECTION["V_FL"]
-                                 * THRUST_LIMIT * PWM_RANGE_US)
+    # Onizleme: tahmin degil, thrusters.py'nin gercekte yazacagi degerler.
+    komut = mix(surge=0.0, yaw=0.0, heave=heave)
+    hedef = {ad: Thrusters._to_us(deger) for ad, deger in komut.items()}
+
     print(f"\n  Itki yonu    : {yon_etiket}")
     print(f"  Guc          : %{args.guc * 100:.0f}  (THRUST_LIMIT={THRUST_LIMIT} ile "
           f"efektif %{args.guc * THRUST_LIMIT * 100:.0f})")
     print(f"  Sure         : {args.sure:g} sn")
-    print(f"  Dikey motor  : {', '.join(DIKEY_MOTORLAR)}")
-    print(f"  Notre sapma  : {sapma_us:.0f} us  -> V_* kanallari ~{hedef_us:.0f} us")
-    print(f"  Yatay motor  : notrde ({PWM_NEUTRAL_US} us), hareket yok")
+    print(f"  Notr         : {PWM_NEUTRAL_US} us   "
+          f"(ESC siniri {ESC_ABS_MIN_US}..{ESC_ABS_MAX_US} us)")
+    print("  Gonderilecek PWM:")
+    for ad in DIKEY_MOTORLAR:
+        fark = hedef[ad] - PWM_NEUTRAL_US
+        print(f"    {ad:5} = {hedef[ad]:4d} us ({fark:+4d})")
+    for ad in ("H_L", "H_R"):
+        print(f"    {ad:5} = {hedef[ad]:4d} us (notr, yatay hareket yok)")
+
+    if all(us == PWM_NEUTRAL_US for ad, us in hedef.items() if ad in DIKEY_MOTORLAR):
+        print("\n[HATA] Dikey motorlarin hepsi notrde kaliyor - hicbir sey olmaz.")
+        print("       --guc degerini artirin.")
+        sys.exit(1)
 
     if not args.onay_yok:
         input("\n--> ESC'lere GUC VER, bip sesleri bitsin, sonra ENTER...")
@@ -110,7 +122,6 @@ def main():
         print(f"  {kalan}...")
         time.sleep(1.0)
 
-    komut = mix(surge=0.0, yaw=0.0, heave=heave)
     dt = 1.0 / LOOP_HZ
 
     try:

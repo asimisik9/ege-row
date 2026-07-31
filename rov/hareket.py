@@ -25,7 +25,7 @@ import sys
 import time
 
 from config import (LOOP_HZ, PWM_NEUTRAL_US, PWM_RANGE_US, PWM_DEADBAND_US,
-                    THRUST_LIMIT)
+                    THRUST_LIMIT, ESC_ABS_MIN_US, ESC_ABS_MAX_US)
 from control.mixer import mix
 
 # hareket adi -> (surge_isareti, yaw_isareti)
@@ -87,8 +87,11 @@ def olu_bant_kontrol(ad, guc):
 def hareketi_uygula(thr, ad, surge, yaw, heave, sure, dt):
     """Tek bir hareketi verilen sure boyunca uygular."""
     komut = mix(surge=surge, yaw=yaw, heave=heave)
+    us = {m: type(thr)._to_us(v) for m, v in komut.items()}
     print(f"\n[{ad.upper()}] surge={surge:+.2f} yaw={yaw:+.2f} heave={heave:+.2f} "
           f"({sure:g} sn)")
+    print(f"  H_L={us['H_L']}us  H_R={us['H_R']}us  |  "
+          f"V_*={us['V_FL']},{us['V_FR']},{us['V_RL']},{us['V_RR']} us")
     t0 = time.monotonic()
     while True:
         gecen = time.monotonic() - t0
@@ -145,6 +148,8 @@ def main():
     print(f"  Guc          : %{args.guc * 100:.0f}  (efektif "
           f"%{args.guc * THRUST_LIMIT * 100:.0f})")
     print(f"  Her hareket  : {args.sure:g} sn,  arada {args.ara:g} sn notr")
+    print(f"  Notr         : {PWM_NEUTRAL_US} us   "
+          f"(ESC siniri {ESC_ABS_MIN_US}..{ESC_ABS_MAX_US} us)")
     if args.dal > 0:
         print(f"  Dalis itkisi : %{args.dal * 100:.0f} (hareket boyunca sabit)")
     else:

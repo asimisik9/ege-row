@@ -9,7 +9,21 @@ Guvenlik: arm edilmeden komut gonderilmez; stop() her kosulda notre ceker.
 """
 import time
 from config import (MOTOR_CHANNELS, PWM_NEUTRAL_US, PWM_MIN_US, PWM_MAX_US,
-                    PWM_DEADBAND_US, SLEW_RATE, PCA9685_REF_CLOCK_HZ)
+                    PWM_DEADBAND_US, SLEW_RATE, PCA9685_REF_CLOCK_HZ,
+                    ESC_ABS_MIN_US, ESC_ABS_MAX_US)
+
+# config.py'de yanlis bir PWM_RANGE_US yazilirsa (orn. notrden sapma yerine
+# toplam genislik girilirse) PWM_MIN/MAX ESC'nin anlamadigi degerlere kayar.
+# Import aninda yakala - suya girdikten sonra degil.
+if not (ESC_ABS_MIN_US <= PWM_MIN_US < PWM_NEUTRAL_US < PWM_MAX_US <= ESC_ABS_MAX_US):
+    raise ValueError(
+        f"config.py PWM ayarlari ESC araliginin disinda!\n"
+        f"  hesaplanan: {PWM_MIN_US}..{PWM_NEUTRAL_US}..{PWM_MAX_US} us\n"
+        f"  ESC siniri: {ESC_ABS_MIN_US}..{ESC_ABS_MAX_US} us\n"
+        f"  PWM_RANGE_US notrden TEK YONDEKI sapmadir, toplam genislik degil.\n"
+        f"  Notr {PWM_NEUTRAL_US} icin en fazla "
+        f"{min(PWM_NEUTRAL_US - ESC_ABS_MIN_US, ESC_ABS_MAX_US - PWM_NEUTRAL_US)} olabilir."
+    )
 
 
 # ------------------------------------------------------------ backendler
@@ -98,7 +112,9 @@ class Thrusters:
         us = PWM_NEUTRAL_US + value * (PWM_MAX_US - PWM_NEUTRAL_US)
         if abs(us - PWM_NEUTRAL_US) < PWM_DEADBAND_US:
             us = PWM_NEUTRAL_US
-        return int(max(PWM_MIN_US, min(PWM_MAX_US, us)))
+        us = max(PWM_MIN_US, min(PWM_MAX_US, us))
+        # son emniyet: hicbir kosulda ESC'nin fiziksel sinirlarini asma
+        return int(max(ESC_ABS_MIN_US, min(ESC_ABS_MAX_US, us)))
 
     def _write_us(self, name, us):
         self.backend.set_us(MOTOR_CHANNELS[name], us)
