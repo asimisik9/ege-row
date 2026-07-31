@@ -34,7 +34,10 @@ class PCA9685Backend:
         (standart ESC icin 50Hz) ayarlar."""
         import board, busio
         from adafruit_pca9685 import PCA9685
-        i2c = busio.I2C(board.SCL, board.SDA)
+        try:
+            i2c = busio.I2C(board.SCL_1, board.SDA_1)
+        except Exception:
+            i2c = busio.I2C(board.SCL, board.SDA)
         self.dev = PCA9685(i2c, address=address, reference_clock_speed=PCA9685_REF_CLOCK_HZ)
         self.dev.frequency = freq_hz
         self.period_us = 1_000_000 / freq_hz
