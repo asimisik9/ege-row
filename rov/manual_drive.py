@@ -15,7 +15,6 @@ Kontrol Seçenekleri:
        W / S : İleri / Geri (Surge)
        A / D : Sol / Sağ Dönüş (Yaw)
        I / K : Yüksel / Dal (Heave)
-       J / L : Sola Yanaş / Sağa Yanaş (Sway)
        SPACE : Tüm motorları durdur (Nötr)
        Q     : Çıkış
 """
@@ -136,7 +135,10 @@ def main():
                 surge = 0.0; yaw = 0.0; heave = 0.0
 
             # Oncelik Sirasi: PS3 Kolu > Web GCS > Terminal Klavyesi
-            if js_axes:
+            # DIKKAT: kol sadece GERCEKTEN oynatildiginda oncelik alir. Aksi halde
+            # bagli-ama-bosta duran bir kol, tum eksenleri 0 yazip Web GCS ve
+            # klavyeyi (dolayisiyla dalis komutunu) tamamen susturuyordu.
+            if js.is_active():
                 axes_to_apply = js_axes
                 source = "PS3 Kolu"
             elif web_axes:

@@ -13,7 +13,7 @@ Tuşlar:
     A / D   : Sol / Sağ Dönüş (Yaw)
     I / K   : Yüksel / Dal (Heave)
     J / L   : Sol / Sağ Yanaşma (Sway)
-    SPACE   : Tüm motorları NÖTR (1750us) yap
+    SPACE   : Tüm motorları NÖTR yap
     + / -   : Gaz gücünü artır / azalt (%10 adımlarla)
     Q       : Tüm motorları durdur ve çık
 """
@@ -32,19 +32,14 @@ except ImportError:
     _HW_OK = False
     print("[UYARI] PCA9685 kütüphanesi bulunamadı! Simülasyon modunda çalışıyor.")
 
-# ── PWM ve Kanal Ayarları
-NEUTRAL_US = 1500    # ESC Nötr Sinyali
-MAX_SPAN_US = 500    # Nötrden maks sapma (+/- 250us -> 1500..2000us)
-FREQ_HZ = 50         # ESC PWM Frekansı
+# ── PWM ve Kanal Ayarları (tek kaynak: config.py)
+from config import (PWM_NEUTRAL_US, PWM_RANGE_US, PWM_MIN_US, PWM_MAX_US,
+                    FREQ_HZ, PCA9685_REF_CLOCK_HZ, MOTOR_CHANNELS, MOTOR_DIRECTION)
 
-CHANNELS = {
-    "V_FL": 0,
-    "V_RL": 1,
-    "H_L":  2,
-    "V_FR": 3,
-    "V_RR": 5,
-    "H_R":  4,
-}
+NEUTRAL_US = PWM_NEUTRAL_US
+MAX_SPAN_US = PWM_RANGE_US
+CHANNELS = MOTOR_CHANNELS
+PERIOD_US = 1_000_000 / FREQ_HZ
 
 
 class ThrusterDriver:
@@ -53,7 +48,9 @@ class ThrusterDriver:
         if _HW_OK:
             try:
                 i2c = busio.I2C(board.SCL, board.SDA)
-                self.dev = PCA9685(i2c, address=0x40)
+                # reference_clock_speed olmadan kart 58.1Hz'e kacar (darbeler %14 kisa).
+                self.dev = PCA9685(i2c, address=0x40,
+                                   reference_clock_speed=PCA9685_REF_CLOCK_HZ)
                 self.dev.frequency = FREQ_HZ
                 print(f"[OK] PCA9685 bağlandı (0x40, {FREQ_HZ}Hz).")
             except Exception as e:
@@ -64,13 +61,13 @@ class ThrusterDriver:
 
     def set_us(self, ch, us_val):
         """Mikrosaniye (us) değerini PCA9685 kanallarına yazar."""
-        us_val = int(max(1100, min(1900, us_val)))
+        us_val = int(max(PWM_MIN_US, min(PWM_MAX_US, us_val)))
         if self.dev:
-            duty = int(us_val / (1_000_000 / FREQ_HZ) * 0xFFFF)
+            duty = int(us_val / PERIOD_US * 0xFFFF)
             self.dev.channels[ch].duty_cycle = duty
 
     def stop_all(self):
-        """Tüm kanalları 1750us Nötr sinyaline çeker."""
+        """Tüm kanalları nötr sinyaline çeker."""
         for ch in CHANNELS.values():
             self.set_us(ch, NEUTRAL_US)
 
@@ -98,9 +95,9 @@ class ThrusterDriver:
             "V_RR": max(-1.0, min(1.0, v_rr)),
         }
 
-        # PWM hesapla ve kanallara yaz
+        # PWM hesapla ve kanallara yaz (config.py MOTOR_DIRECTION yon duzeltmesiyle)
         for name, ch in CHANNELS.items():
-            val = cmds[name]
+            val = cmds[name] * MOTOR_DIRECTION.get(name, 1)
             us_val = NEUTRAL_US + (val * MAX_SPAN_US)
             self.set_us(ch, us_val)
 
@@ -151,7 +148,7 @@ def main():
     print("   A / D : Sol / Sağ Dönüş")
     print("   I / K : Yüksel / Dal")
     print("   J / L : Yana Kayma (Sway)")
-    print("   SPACE : Motorları Durdur (1750us Nötr)")
+    print("   SPACE : Motorları Durdur (Nötr)")
     print("   + / - : Maksimum Gaz Limiti Artır/Azalt")
     print("   Q     : Çıkış")
     print("-" * 60)
@@ -213,7 +210,7 @@ def main():
         print("\nCtrl+C ile durduruldu.")
     finally:
         drv.stop_all()
-        print("\n[GUVENLI CIKIS] Tüm motorlar 1750us Nötr konumuna çekildi.")
+        print(f"\n[GUVENLI CIKIS] Tüm motorlar {NEUTRAL_US}us Nötr konumuna çekildi.")
 
 
 if __name__ == "__main__":

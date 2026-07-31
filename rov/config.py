@@ -27,8 +27,12 @@ MOTOR_CHANNELS = {
 
 # PWM sinyal parametreleri (her iki yone simetrik — tek merkezden yonetilir)
 PCA9685_REF_CLOCK_HZ = 29_040_000 # PCA9685 dahili saat frekansi (58.08 Hz olcumune gore 29.04 MHz olarak kalibre edildi)
+                                  # DIKKAT: PCA9685(...) cagrisina reference_clock_speed=PCA9685_REF_CLOCK_HZ
+                                  # VERILMEZSE kart 50Hz yerine 58.1Hz'de calisir ve TUM darbeler %14 kisalir
+                                  # (1500us -> ESC 1291us gorur = geri yon). Her yeni scriptte bunu gec!
+FREQ_HZ         = 50          # ESC PWM tasiyici frekansi (Hz) - tum backendler bunu kullanir
 PWM_NEUTRAL_US  = 1470        # ESC standart notr sinyali (mikrosaniye)
-PWM_RANGE_US    = 1000         # Notrden her iki yone esit PWM sapma miktari (+/- 400us -> 1100..1900us)
+PWM_RANGE_US    = 1000        # Notrden her iki yone esit PWM sapma miktari
 PWM_MIN_US      = PWM_NEUTRAL_US - PWM_RANGE_US   # 1100 us (otomatik hesap)
 PWM_MAX_US      = PWM_NEUTRAL_US + PWM_RANGE_US   # 1900 us (otomatik hesap)
 PWM_DEADBAND_US = 30          # notr etrafinda olu bant (titremeyi ve bip sesini engeller)
@@ -36,6 +40,15 @@ THRUST_LIMIT    = 1.0         # motor guc siniri 0..1 (baslangicta dusuk tut!)
 SLEW_RATE       = 2.0         # birim/sn - motor komutu degisim hizi siniri (ani gaz onler)
 
 # Pervane yonu duzeltmeleri: ters donen motor icin -1 yaz.
+#
+# !!! BU TABLO SUPHELI - CIHAZDA YENIDEN OLCULMELI !!!
+# Alttaki 6x -1 degeri, kanal_test.py 58.1Hz hatasiyla calisirken olculdu.
+# O sirada "notr/ileri/geri" darbelerinin UCU DE 1500us altina dusuyordu, yani
+# her motor her testte geri donuyordu -> hepsine -1 yazildi. Frekans hatasi
+# duzeltildigi icin bu tablo artik butun eksenleri ters ceviriyor
+# (heave=+1 "dal" komutu ROV'u YUKARI itiyor).
+# Yapilacak: kanal_test.py'yi tekrar calistir, her motorun gercek yonunu not al,
+# sadece fiziksel olarak ters donenlere -1 birak.
 MOTOR_DIRECTION = {
     "V_FL": -1, "V_FR": -1, "V_RL": -1, "V_RR": -1,
     "H_L": -1, "H_R": -1,

@@ -14,9 +14,13 @@ import sys
 import time
 
 from hal.thrusters import Thrusters, PCA9685Backend
-from config import MOTOR_CHANNELS, PWM_NEUTRAL_US
+from config import MOTOR_CHANNELS, PWM_NEUTRAL_US, PWM_DEADBAND_US, PWM_RANGE_US
 
-TEST_POWER = 0.10   # %10 guc - ilk test icin dusuk tut
+# Olu bant esigi: bunun altindaki komutlar _to_us() icinde notre yuvarlanir,
+# yani motor HIC donmez. Eski %10 degeri (40us < 45us olu bant) tam bu tuzaga
+# dusuyordu ve "motorlar calismiyor" gibi gorunuyordu.
+_MIN_EFFECTIVE = PWM_DEADBAND_US / PWM_RANGE_US        # ~0.1125
+TEST_POWER = round(_MIN_EFFECTIVE + 0.08, 2)           # olu bandin guvenli ustu (~%19)
 TEST_TIME_S = 2.0
 
 

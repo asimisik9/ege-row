@@ -14,7 +14,8 @@ Prosedur:
 Guvenlik: pervanesiz test et!
 """
 import time
-from config import PWM_NEUTRAL_US, PWM_MIN_US, PWM_MAX_US
+from config import (PWM_NEUTRAL_US, PWM_MIN_US, PWM_MAX_US,
+                    PCA9685_REF_CLOCK_HZ, FREQ_HZ)
 
 import board
 import busio
@@ -27,14 +28,17 @@ REV_US = PWM_NEUTRAL_US - 150
 SPIN_S = 2.0
 
 i2c = busio.I2C(board.SCL, board.SDA)
-p = PCA9685(i2c, address=0x40)
-p.frequency = 50
+# reference_clock_speed sart: verilmezse kart 58.1Hz'de calisir ve tum darbeler
+# %14 kisalir (1500us -> 1291us), yani her motor her testte geri doner.
+p = PCA9685(i2c, address=0x40, reference_clock_speed=PCA9685_REF_CLOCK_HZ)
+p.frequency = FREQ_HZ
 
+PERIOD_US = 1_000_000 / FREQ_HZ
 
 
 def us(ch, u):
-    """Mikrosaniye -> 16-bit duty cycle (50Hz = 20000us periyot)."""
-    p.channels[ch].duty_cycle = int(u / 20000 * 0xFFFF)
+    """Mikrosaniye -> 16-bit duty cycle."""
+    p.channels[ch].duty_cycle = int(u / PERIOD_US * 0xFFFF)
 
 
 raw = input("Kanal numaralari (virgullu, orn 0,1,2): ")
