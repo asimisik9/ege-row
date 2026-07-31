@@ -55,7 +55,20 @@ def bus_tara(num):
 
     bulunan = []
     for addr in range(0x03, 0x78):
+        # i2cdetect mantigi: EEPROM bolgesi (0x50-0x5F) ve 0x30-0x37 READ ile,
+        # geri kalani QUICK WRITE ile yoklanir. Sadece read_byte kullanmak
+        # MS5837 gibi "komutsuz okumaya ACK vermeyen" cihazlari KACIRIR —
+        # sensor calisir ama taramada bus 'bos' gorunur.
         try:
+            if 0x30 <= addr <= 0x37 or 0x50 <= addr <= 0x5F:
+                bus.read_byte(addr)
+            else:
+                bus.write_quick(addr)
+            bulunan.append(addr)
+            continue
+        except Exception:
+            pass
+        try:  # diger yontemi de dene (bazi cihazlar tersine cevap verir)
             bus.read_byte(addr)
             bulunan.append(addr)
         except Exception:
