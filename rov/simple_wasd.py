@@ -46,13 +46,10 @@ class ThrusterDriver:
         self.dev = None
         if _HW_OK:
             try:
-                try:
-                    i2c = busio.I2C(board.SCL_1, board.SDA_1)
-                except Exception:
-                    i2c = busio.I2C(board.SCL, board.SDA)
+                i2c = busio.I2C(board.SCL, board.SDA)
                 self.dev = PCA9685(i2c, address=0x40, reference_clock_speed=PCA9685_REF_CLOCK_HZ)
                 self.dev.frequency = FREQ_HZ
-                print(f"[OK] PCA9685 bağlandı (0x40, {FREQ_HZ}Hz - Pin 3/5 Bus 8).")
+                print(f"[OK] PCA9685 bağlandı (0x40, {FREQ_HZ}Hz).")
             except Exception as e:
                 print(f"[HATA] PCA9685 bağlanamadı: {e}")
                 self.dev = None
