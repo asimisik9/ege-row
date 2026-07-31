@@ -2,6 +2,11 @@
 import time
 from config import I2C_BUS, DEPTH_ADDR, FLUID_DENSITY
 
+try:
+    from config import SURFACE_PRESSURE_MBAR
+except ImportError:
+    SURFACE_PRESSURE_MBAR = None
+
 
 class Ms5837:
     """Gercek donanim surucusu (datasheet'e gore 1. derece kompanzasyon)."""
@@ -34,7 +39,12 @@ class Ms5837:
         for i in range(7):
             d = self.bus.read_i2c_block_data(DEPTH_ADDR, self.CMD_PROM + 2 * i, 2)
             self.C.append(d[0] << 8 | d[1])
-        self.surface_pressure_mbar = None
+        # Kalibrasyonla olculmus yuzey referansi varsa fallback olarak kullan;
+        # gorev basinda zero_at_surface() cagrilirsa taze deger ile ezilir.
+        self.surface_pressure_mbar = SURFACE_PRESSURE_MBAR
+        if SURFACE_PRESSURE_MBAR is not None:
+            print(f"[DEPTH] Yuzey referansi config'den yuklendi: "
+                  f"{SURFACE_PRESSURE_MBAR} mbar")
 
     def _convert(self, cmd):
         """Verilen ADC donusum komutunu (D1=basinc ya da D2=sicaklik)

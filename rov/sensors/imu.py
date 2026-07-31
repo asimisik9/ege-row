@@ -66,20 +66,31 @@ class Mpu9250:
         r = self.ACCEL_XOUT_H
         return tuple(self._read_i16(IMU_ADDR, r + 2 * i) / 16384.0 for i in range(3))
 
+    def read_gyro_dps_raw(self):
+        """Uc eksen acisal hizi KALIBRASYONSUZ (ham) derece/sn dondurur.
+        Kalibrasyon scripti bunu kullanir (bias ust uste binmesin diye)."""
+        r = self.GYRO_XOUT_H
+        return tuple(self._read_i16(IMU_ADDR, r + 2 * i) / 131.0 for i in range(3))
+
     def read_gyro_dps(self):
         """Uc eksen acisal hizi derece/sn cinsinden dondurur; kalibrasyonla
         bulunan GYRO_BIAS her eksenden cikarilarak sapma giderilir."""
-        r = self.GYRO_XOUT_H
-        g = tuple(self._read_i16(IMU_ADDR, r + 2 * i) / 131.0 for i in range(3))
+        g = self.read_gyro_dps_raw()
         return tuple(g[i] - GYRO_BIAS[i] for i in range(3))
 
-    def read_mag_ut(self):
-        """Uc eksen manyetik alani mikroTesla cinsinden dondurur; hard/soft
-        iron kalibrasyonu (MAG_OFFSET/MAG_SCALE) uygulanmis olarak."""
+    def read_mag_ut_raw(self):
+        """Uc eksen manyetik alani KALIBRASYONSUZ (ham) mikroTesla dondurur.
+        Kalibrasyon scripti bunu kullanir (ofset/olcek ust uste binmesin diye)."""
         # AK8963 little-endian; ST2 okunmadan yeni veri gelmez
         m = tuple(self._read_i16(MAG_ADDR, self.MAG_HXL + 2 * i, little=True) * 0.15
                   for i in range(3))
         self.bus.read_byte_data(MAG_ADDR, self.MAG_ST2)
+        return m
+
+    def read_mag_ut(self):
+        """Uc eksen manyetik alani mikroTesla cinsinden dondurur; hard/soft
+        iron kalibrasyonu (MAG_OFFSET/MAG_SCALE) uygulanmis olarak."""
+        m = self.read_mag_ut_raw()
         return tuple((m[i] - MAG_OFFSET[i]) * MAG_SCALE[i] for i in range(3))
 
 

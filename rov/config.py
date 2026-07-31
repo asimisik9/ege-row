@@ -70,6 +70,8 @@ IMU_ADDR = 0x68              # MPU-9250
 MAG_ADDR = 0x0C              # AK8963 (MPU-9250 icindeki manyetometre)
 DEPTH_ADDR = 0x76            # MS5837-30BA
 FLUID_DENSITY = 1025         # kg/m3 (deniz ~1025, havuz/tatli su 997)
+SURFACE_PRESSURE_MBAR = None # yuzey basinc referansi (calibrate_depth.py ile olculecek)
+                             # None: gorev basinda zero_at_surface() ile olculur
 
 # IMU fuzyon + kalibrasyon (cihaz uzerinde olculecek)
 HEADING_FILTER_ALPHA = 0.98  # jiroskop agirligi (0..1), kalani manyetometre
