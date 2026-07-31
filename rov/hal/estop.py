@@ -52,8 +52,18 @@ class EStopMonitor:
                   "(simulasyon / gelistirme modunda normal).")
             return
 
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setup(ESOP_GPIO_BCM, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+        current_mode = GPIO.getmode()
+        if current_mode is None:
+            try:
+                GPIO.setmode(GPIO.BCM)
+            except ValueError:
+                pass
+        
+        try:
+            GPIO.setup(ESOP_GPIO_BCM, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+        except Exception as e:
+            print(f"[E-STOP] UYARI: Pin {ESOP_GPIO_BCM} hazırlığı başarısız: {e}")
+            return
         # Kesme tabanli algilama — dongulere gerek yok
         GPIO.add_event_detect(
             ESOP_GPIO_BCM,

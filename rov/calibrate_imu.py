@@ -43,14 +43,38 @@ def calibrate_gyro(imu, duration_s=5.0):
     bias = (round(_avg(xs), 3), round(_avg(ys), 3), round(_avg(zs), 3))
     print(f"GYRO_BIAS olculen deger: {bias}")
 
-    # kalite kontrolu: olcum sirasinda hareket var miydi?
-    spread = max(max(v) - min(v) for v in (xs, ys, zs))
-    if spread > 3.0:
-        print(f"[UYARI] Olcum sirasinda hareket algilandi (yayilim {spread:.1f} "
-              "dps)! Araci sabit tutup tekrar calistir.")
-    if max(abs(b) for b in bias) > 10.0:
-        print("[UYARI] Bias cok buyuk (>10 dps) - sensor arizali olabilir "
-              "veya olcum sirasinda arac donduruldu.")
+    # Kalite kontrolü: Gerçek hareket var mı? (Standart sapma ile kontrol)
+    import statistics
+    std_x = statistics.pstdev(xs)
+    std_y = statistics.pstdev(ys)
+    std_z = statistics.pstdev(zs)
+    max_std = max(std_x, std_y, std_z)
+
+    if max_std > 1.5:
+        print(f"[UYARI] Ölçüm sırasında belirgin hareket algılandı (Standart Sapma: {max_std:.2f} dps)! "
+              "Aracı tamamen sabit tutup tekrar çalıştırın.")
+    if max(abs(b) for b in bias) > 15.0:
+        print("[UYARI] Bias çok büyük (>15 dps) - sensör arızalı olabilir "
+              "veya ölçüm sırasında araç döndürüldü.")
+    return bias
+
+
+def calibrate_accel(imu, duration_s=5.0):
+    """Arac düz bir zeminde hareketsizken ivmeolceri ornekler ve
+    ivmeolcer sapmasini (ACCEL_BIAS) hesaplar. Arac düzken
+    beklenen ivme (0, 0, 1) olmalidir."""
+    print(f"\nOlculuyor ({duration_s:.0f} sn) - İvmeölçer için... ARACA DOKUNMA...")
+    xs, ys, zs = [], [], []
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < duration_s:
+        ax, ay, az = imu.read_accel_g_raw()
+        xs.append(ax)
+        ys.append(ay)
+        zs.append(az)
+        time.sleep(0.02)
+    # Z ekseninden yerçekimini çıkar (1g varsayarak)
+    bias = (round(_avg(xs), 3), round(_avg(ys), 3), round(_avg(zs) - 1.0, 3))
+    print(f"ACCEL_BIAS olculen deger: {bias}")
     return bias
 
 
@@ -102,7 +126,7 @@ def calibrate_mag(imu, duration_s=15.0):
     return offset, scale
 
 
-def write_config(gyro_bias, mag_offset, mag_scale, path="config.py"):
+def write_config(gyro_bias, accel_bias, mag_offset, mag_scale, path="config.py"):
     """config.py icindeki GYRO_BIAS / MAG_OFFSET / MAG_SCALE satirlarini
     regex ile yeni olculen degerlerle degistirir. Once dosyayi .bak olarak
     yedekler ki yanlis kalibrasyonda eski hale donulebilsin."""
@@ -112,6 +136,13 @@ def write_config(gyro_bias, mag_offset, mag_scale, path="config.py"):
 
     text = re.sub(r"GYRO_BIAS\s*=.*",
                   f"GYRO_BIAS  = {gyro_bias}  # kalibrasyon ile olculdu", text)
+    if "ACCEL_BIAS" in text:
+        text = re.sub(r"ACCEL_BIAS\s*=.*",
+                      f"ACCEL_BIAS = {accel_bias}  # kalibrasyon ile olculdu", text)
+    else:
+        text = text.replace(f"GYRO_BIAS  = {gyro_bias}  # kalibrasyon ile olculdu",
+                            f"GYRO_BIAS  = {gyro_bias}  # kalibrasyon ile olculdu\n"
+                            f"ACCEL_BIAS = {accel_bias}  # kalibrasyon ile olculdu")
     text = re.sub(r"MAG_OFFSET\s*=.*",
                   f"MAG_OFFSET = {mag_offset}  # kalibrasyon ile olculdu", text)
     text = re.sub(r"MAG_SCALE\s*=.*",
@@ -131,6 +162,7 @@ def main():
     imu = Mpu9250()
 
     gyro_bias = calibrate_gyro(imu)
+    accel_bias = calibrate_accel(imu)
 
     input("\n2) Simdi araci elinle cevirmeye hazirlan. "
           "Hazir olunca ENTER'a bas, sonra hemen cevirmeye basla...")
@@ -138,10 +170,11 @@ def main():
 
     print("\n--- OZET ---")
     print(f"GYRO_BIAS  = {gyro_bias}")
+    print(f"ACCEL_BIAS = {accel_bias}")
     print(f"MAG_OFFSET = {mag_offset}")
     print(f"MAG_SCALE  = {mag_scale}")
 
-    write_config(gyro_bias, mag_offset, mag_scale)
+    write_config(gyro_bias, accel_bias, mag_offset, mag_scale)
     print("\nBitti. Simdi gorevi baslatabilirsin: 'python3 video_main.py' "
           "(ya da tam sistem icin 'python3 main.py').")
 

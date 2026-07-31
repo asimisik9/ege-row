@@ -32,7 +32,7 @@ except ImportError:
     _HW_OK = False
     print("[UYARI] PCA9685 kütüphanesi bulunamadı! Simülasyon modunda çalışıyor.")
 
-from config import (PWM_NEUTRAL_US, PWM_RANGE_US, FREQ_HZ,
+from config import (PWM_NEUTRAL_US, PWM_RANGE_US,
                     PCA9685_REF_CLOCK_HZ, MOTOR_CHANNELS, MOTOR_DIRECTION)
 
 NEUTRAL_US = PWM_NEUTRAL_US

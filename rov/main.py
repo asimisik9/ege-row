@@ -69,11 +69,11 @@ def build_system():
     ori = Orientation(imu_sensor)
 
     try:
-        depth_sensor = Ms5837()
+        depth = Ms5837()
         print("[OK] MS5837 Derinlik Sensörü Bağlandı.")
     except Exception as e:
         print(f"[UYARI] MS5837 Derinlik Sensörü Bağlanamadı ({e}), MockDepth Kullanılıyor.")
-        depth_sensor = MockDepth()
+        depth = MockDepth()
 
     return thr, ori, depth
 

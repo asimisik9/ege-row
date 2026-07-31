@@ -15,6 +15,11 @@ import time
 from config import (I2C_BUS, IMU_ADDR, MAG_ADDR, HEADING_FILTER_ALPHA,
                     MAG_OFFSET, MAG_SCALE, GYRO_BIAS)
 
+try:
+    from config import ACCEL_BIAS
+except ImportError:
+    ACCEL_BIAS = (0.0, 0.0, 0.0)
+
 
 class Mpu9250:
     """Gercek donanim. Kurulum: pip3 install smbus2"""
@@ -61,16 +66,31 @@ class Mpu9250:
         raw = (lo << 8 | hi) if little else (hi << 8 | lo)
         return raw - 65536 if raw > 32767 else raw
 
+    def read_accel_g_raw(self):
+        """Uc eksen ivmeyi KALIBRASYONSUZ g biriminde (x, y, z) tuple olarak dondurur."""
+        d = self.bus.read_i2c_block_data(IMU_ADDR, self.ACCEL_XOUT_H, 6)
+        vals = []
+        for i in range(3):
+            raw = (d[2*i] << 8) | d[2*i + 1]
+            if raw > 32767:
+                raw -= 65536
+            vals.append(raw / 16384.0)
+        return tuple(vals)
+
     def read_accel_g(self):
-        """Uc eksen ivmeyi g biriminde (x, y, z) tuple olarak dondurur."""
-        r = self.ACCEL_XOUT_H
-        return tuple(self._read_i16(IMU_ADDR, r + 2 * i) / 16384.0 for i in range(3))
+        vals = self.read_accel_g_raw()
+        return tuple(vals[i] - ACCEL_BIAS[i] for i in range(3))
 
     def read_gyro_dps_raw(self):
-        """Uc eksen acisal hizi KALIBRASYONSUZ (ham) derece/sn dondurur.
-        Kalibrasyon scripti bunu kullanir (bias ust uste binmesin diye)."""
-        r = self.GYRO_XOUT_H
-        return tuple(self._read_i16(IMU_ADDR, r + 2 * i) / 131.0 for i in range(3))
+        """Uc eksen acisal hizi KALIBRASYONSUZ (ham) derece/sn dondurur."""
+        d = self.bus.read_i2c_block_data(IMU_ADDR, self.GYRO_XOUT_H, 6)
+        vals = []
+        for i in range(3):
+            raw = (d[2*i] << 8) | d[2*i + 1]
+            if raw > 32767:
+                raw -= 65536
+            vals.append(raw / 131.0)
+        return tuple(vals)
 
     def read_gyro_dps(self):
         """Uc eksen acisal hizi derece/sn cinsinden dondurur; kalibrasyonla
