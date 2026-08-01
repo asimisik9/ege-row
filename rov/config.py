@@ -206,28 +206,18 @@ FLUID_DENSITY = 997         # kg/m3 (deniz ~1025, havuz/tatli su 997)
 SURFACE_PRESSURE_MBAR = 1010.0  # kalibrasyon ile olculdu (calibrate_depth.py)
                              # None: gorev basinda zero_at_surface() ile olculur
 
-<<<<<<< Updated upstream
-# IMU fuzyon + kalibrasyon (cihaz uzerinde olculecek)
-USE_MAGNETOMETER = False  # EGE ROV donaniminda pusula modulu kullanilmiyor (AK8963 devre disi)
-HEADING_FILTER_ALPHA = 0.98  # jiroskop agirligi (0..1), kalani manyetometre
-MAG_OFFSET = (-11.1, -11.47, 38.47)  # kalibrasyon ile olculdu
-MAG_SCALE  = (1.179, 0.876, 0.989)  # kalibrasyon ile olculdu
-GYRO_BIAS  = (5.677, 0.82, -0.015)  # kalibrasyon ile olculdu
-ACCEL_BIAS = (0.0, 0.0, 0.0)  # SIFIRLANDIT: (2.0, -2.0, -0.296) ariza kalibrasyon degerleridir.
-                               # ROV hareketsizken calibrate_imu.py ile yeniden olc.
-=======
 # IMU fuzyon + kalibrasyon (cihaz uzerinde olculecek — calibrate_imu.py)
+USE_MAGNETOMETER = False  # EGE ROV donaniminda pusula modulu kullanilmiyor (AK8963 devre disi)
 HEADING_FILTER_ALPHA = 0.98  # jiroskop agirligi (0..1), kalani manyetometre
 MAG_OFFSET      = (-11.1, -11.47, 38.47)  # kalibrasyon ile olculdu
 MAG_SCALE       = (1.179, 0.876, 0.989)   # kalibrasyon ile olculdu
 GYRO_BIAS       = (5.677, 0.82, -0.015)   # kalibrasyon ile olculdu
-ACCEL_BIAS      = (2.0, -2.0, -0.296)     # kalibrasyon ile olculdu
+ACCEL_BIAS      = (0.0, 0.0, 0.0)         # kalibrasyon ile olculdu
 # IMU montaj acilari: ROV'un dogal durusundaki pitch/roll ofseti.
 # calibrate_imu.py bu degerleri otomatik olcer ve buraya yazar.
 # Orientation sinifi bu ofseti cikararak ROV'un dogal durusunu 0 referans alir.
 MOUNT_PITCH_DEG = 0.0  # IMU montaj pitch ofseti (derece) — calibrate_imu.py ile olculecek
 MOUNT_ROLL_DEG  = 0.0  # IMU montaj roll ofseti (derece)  — calibrate_imu.py ile olculecek
->>>>>>> Stashed changes
 
 # ---------------------------------------------------------------- loglama
 LOG_DIR = "logs"

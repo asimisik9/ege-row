@@ -88,11 +88,7 @@ def get_hardware_or_sim():
             print("[OK] MPU-9250 IMU bağlandı.")
         except Exception as e:
             print(f"[UYARI] MPU-9250 bağlanamadı ({e}), MockImuStatic kullanılıyor.")
-<<<<<<< Updated upstream
-            imu_sensor = MockImuStatic()
-=======
             imu_sensor = MockImuStatic()  # sim argümanı gerektirmeyen fallback
->>>>>>> Stashed changes
         ori = Orientation(imu_sensor)
 
         try:
@@ -106,14 +102,6 @@ def get_hardware_or_sim():
         return thr, ori, depth
 
 
-<<<<<<< Updated upstream
-def save_pid_to_config(axis_key, pid_dict, path="../config.py"):
-    """Seçilen PID eksenini config.py dosyasına kaydeder."""
-    CONFIG_PATH = os.path.normpath(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'config.py')
-    )
-    path = CONFIG_PATH
-=======
 _CONFIG_PATH = os.path.normpath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'config.py')
 )
@@ -123,7 +111,6 @@ def save_pid_to_config(axis_key, pid_dict, path=None):
     """Secilen PID eksenini config.py dosyasina kaydeder."""
     if path is None:
         path = _CONFIG_PATH
->>>>>>> Stashed changes
     shutil.copy(path, path + ".bak")
     with open(path) as f:
         text = f.read()
