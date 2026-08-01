@@ -50,15 +50,8 @@ THRUST_LIMIT    = 1.0         # motor guc siniri 0..1 (baslangicta dusuk tut!)
 SLEW_RATE       = 2.0         # birim/sn - motor komutu degisim hizi siniri (ani gaz onler)
 
 # Pervane yonu duzeltmeleri: ters donen motor icin -1 yaz.
-#
-# !!! BU TABLO SUPHELI - CIHAZDA YENIDEN OLCULMELI !!!
-# Alttaki 6x -1 degeri, kanal_test.py 58.1Hz hatasiyla calisirken olculdu.
-# O sirada "notr/ileri/geri" darbelerinin UCU DE 1500us altina dusuyordu, yani
-# her motor her testte geri donuyordu -> hepsine -1 yazildi. Frekans hatasi
-# duzeltildigi icin bu tablo artik butun eksenleri ters ceviriyor
-# (heave=+1 "dal" komutu ROV'u YUKARI itiyor).
-# Yapilacak: kanal_test.py'yi tekrar calistir, her motorun gercek yonunu not al,
-# sadece fiziksel olarak ters donenlere -1 birak.
+# Bu degerler tercih olarak belirlenmistir (kasitli secim).
+# Mixer ciktisi: pozitif heave = ROV dalar, pozitif surge = ileri.
 MOTOR_DIRECTION = {
     "V_FL": -1, "V_FR": -1, "V_RL": -1, "V_RR": -1,
     "H_L": -1, "H_R": -1,
@@ -179,7 +172,9 @@ GYRO_NOISE_DPS = 1.0
 # ---------------------------------------------------------------- gorev (video gosterimi)
 MISSION = dict(
     target_depth_m   = 0.6,   # hedef derinlik (yuzeye cikmak YASAK, cok derin de gerekmez)
-    dive_timeout_s   = 10.0,  # dalis icin max sure
+    dive_timeout_s   = 30.0,  # dalis icin max sure (10->30: yuzey kuvvetini yenmek zaman alir)
+    dive_power       = 1.0,   # dalis fazinda tam guc: 1.0 = motorlarin max itisi
+                              # ROV boyutuna gore 0.8..1.0 arasi dene
     depth_tol_m      = 0.15,  # derinlik "tamam" toleransi
     straight_time_s  = 16.0,  # min 15 sn sart -> pay birak
     cruise_throttle  = 0.35,  # duz gidis ileri gaz (0..1) - hiz kalibrasyonuyla ayarlanacak
@@ -211,6 +206,7 @@ FLUID_DENSITY = 997         # kg/m3 (deniz ~1025, havuz/tatli su 997)
 SURFACE_PRESSURE_MBAR = 1010.0  # kalibrasyon ile olculdu (calibrate_depth.py)
                              # None: gorev basinda zero_at_surface() ile olculur
 
+<<<<<<< Updated upstream
 # IMU fuzyon + kalibrasyon (cihaz uzerinde olculecek)
 USE_MAGNETOMETER = False  # EGE ROV donaniminda pusula modulu kullanilmiyor (AK8963 devre disi)
 HEADING_FILTER_ALPHA = 0.98  # jiroskop agirligi (0..1), kalani manyetometre
@@ -219,6 +215,19 @@ MAG_SCALE  = (1.179, 0.876, 0.989)  # kalibrasyon ile olculdu
 GYRO_BIAS  = (5.677, 0.82, -0.015)  # kalibrasyon ile olculdu
 ACCEL_BIAS = (0.0, 0.0, 0.0)  # SIFIRLANDIT: (2.0, -2.0, -0.296) ariza kalibrasyon degerleridir.
                                # ROV hareketsizken calibrate_imu.py ile yeniden olc.
+=======
+# IMU fuzyon + kalibrasyon (cihaz uzerinde olculecek — calibrate_imu.py)
+HEADING_FILTER_ALPHA = 0.98  # jiroskop agirligi (0..1), kalani manyetometre
+MAG_OFFSET      = (-11.1, -11.47, 38.47)  # kalibrasyon ile olculdu
+MAG_SCALE       = (1.179, 0.876, 0.989)   # kalibrasyon ile olculdu
+GYRO_BIAS       = (5.677, 0.82, -0.015)   # kalibrasyon ile olculdu
+ACCEL_BIAS      = (2.0, -2.0, -0.296)     # kalibrasyon ile olculdu
+# IMU montaj acilari: ROV'un dogal durusundaki pitch/roll ofseti.
+# calibrate_imu.py bu degerleri otomatik olcer ve buraya yazar.
+# Orientation sinifi bu ofseti cikararak ROV'un dogal durusunu 0 referans alir.
+MOUNT_PITCH_DEG = 0.0  # IMU montaj pitch ofseti (derece) — calibrate_imu.py ile olculecek
+MOUNT_ROLL_DEG  = 0.0  # IMU montaj roll ofseti (derece)  — calibrate_imu.py ile olculecek
+>>>>>>> Stashed changes
 
 # ---------------------------------------------------------------- loglama
 LOG_DIR = "logs"

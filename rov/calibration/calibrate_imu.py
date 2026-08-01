@@ -262,7 +262,6 @@ def main():
     print("""
 Bu script IMU montaj açısından bağımsız çalışır.
 ROV'u yatay tutmak GEREKMEZ — kendi doğal duruşunu referans alır.
-
 Adımlar:
   1) Gyro    — ROV SABİT (5 sn)
   2) Accel   — ROV DOĞAL DURUMDA (5 sn)  ← montaj açısı da ölçülür

@@ -36,6 +36,7 @@ GUVENLIK — YUZEYE CIKMA (kabul kriteri H4)
   Yuzeye cikmak ELEME sebebi. Derinlik SURFACE_GUARD_M'in ustune cikarsa
   olay loglanir ve sayac artar; prova sonrasi analiz araci bunu raporlar.
 """
+import math
 import time
 import sys
 import os
@@ -115,12 +116,42 @@ class VideoDemoMission:
         # ---- DALIS -------------------------------------------------------
         if s == "DIVE":
             self.stab.set_targets(depth_m=M["target_depth_m"])
+<<<<<<< Updated upstream
             axes = self.stab.compute(surge=0.0)
             self._apply(axes)
             # depth_error() sensoru TEKRAR OKUMAZ, compute()'un ornegini kullanir
             ok = abs(self.stab.depth_error()) < M["depth_tol_m"]
             if ok or self._elapsed() > M["dive_timeout_s"]:
                 self._h0 = self.stab.heading_deg      # referans yon
+=======
+            depth_err = self.stab.depth_error()
+
+            # ---- Iki fazli dalis ----
+            # Faz 1 (Guc): Hedef derinligin 2x tolerans disindayken tam guc.
+            #   Roll/Pitch PID DEVRE DISI - bu kompanzasyon dikey motor gucunu
+            #   normalize ederek azaltiyor; dalis sirasinda gereksiz.
+            # Faz 2 (PID): Hedefe yakinken ince ayar (PID devreye girer).
+            if abs(depth_err) > M["depth_tol_m"] * 2:
+                # Tam guc dalis: hata isareti hangi yondeyse o yonde 1.0
+                dive_pwr = math.copysign(M.get("dive_power", 1.0), depth_err)
+                self.thr.command(mix(surge=0.0, yaw=0.0, heave=dive_pwr))
+                if self.log:
+                    self.log.event(
+                        f"DIVE_POWER heave={dive_pwr:.2f} err={depth_err:.3f}m"
+                    )
+            else:
+                # Hedefe yakin: PID ince kontrolu (roll/pitch dahil)
+                axes = self.stab.compute(surge=0.0)
+                self._apply(axes)
+
+            ok = abs(depth_err) < M["depth_tol_m"]
+            if ok or self._elapsed() > M["dive_timeout_s"]:
+                if self._elapsed() > M["dive_timeout_s"] and not ok:
+                    print(f"[UYARI] Dalis timeout ({M['dive_timeout_s']:.0f}s) - "
+                          f"hedef derinlige ulassamadi! (err={depth_err:.2f}m) "
+                          "MOTOR_DIRECTION veya itki gucunu kontrol et.")
+                self._h0 = self.stab.ori.heading  # referans heading
+>>>>>>> Stashed changes
                 self.stab.set_targets(heading_deg=self._h0)
                 self.stab.set_heading_mode("cruise")
                 if self.log:
@@ -211,11 +242,16 @@ class VideoDemoMission:
 
         # ---- BITIS --------------------------------------------------------
         if s == "FINISH":
+<<<<<<< Updated upstream
             # Ileri gaz yok; derinlik ve yon tutulmaya devam eder.
             # (Yuzeye cikmak yasak — su altinda duruyoruz.)
             self.stab.set_heading_mode("turn")
             self.stab.set_targets(depth_m=M["target_depth_m"],
                                   heading_deg=self._h0 + 270)
+=======
+            # motorlari notre cek, su altinda bekle (yuzeye cikmak yasak)
+            # Derinlik stab aktif, sadece surge/yaw = 0
+>>>>>>> Stashed changes
             axes = self.stab.compute(surge=0.0)
             self._apply(axes)
             if self._elapsed() > 3.0:

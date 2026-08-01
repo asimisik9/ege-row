@@ -192,8 +192,29 @@ class MockDepth:
         return self.pressure_mbar
 
     def read_depth_m(self):
+<<<<<<< Updated upstream
         """Simulatorun o anki derinligini dondurur (sim yoksa 0)."""
         return 0.0 if self.sim is None else self.sim.depth_m
 
     def read_depth_m_display(self):
         return max(0.0, self.read_depth_m())
+=======
+        """Simulatorun o anki derinligini dondurur."""
+        return self.sim.depth_m
+
+
+class MockDepthStatic:
+    """Donanim bagli degil ve simulatorsuz calismak gerektiginde kullanilir.
+    Her zaman 0.0 m dondurur. PID test gibi basit senaryolarda yeterli."""
+    def __init__(self):
+        self._surface = 0.0
+
+    def zero_at_surface(self):
+        pass  # no-op
+
+    def read_depth_m(self):
+        return 0.0
+
+    def read_pressure_mbar(self):
+        return 1013.25
+>>>>>>> Stashed changes

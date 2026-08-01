@@ -29,8 +29,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from sensors.depth import Ms5837
 
 
-# config.py her zaman bu scriptin yanindadir (calistirma dizininden bagimsiz)
-CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.py")
+CONFIG_PATH = os.path.normpath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'config.py')
+)
 
 SAMPLE_S = 10.0          # olcum suresi (sn)
 MAX_STD_MBAR = 2.0       # kabul edilebilir gurultu (std sapma, mbar)
@@ -74,10 +75,11 @@ def measure_surface_pressure(sensor, duration_s=SAMPLE_S):
 
 
 
-def write_config(surface_mbar, density,
-                  path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.py")):    
+def write_config(surface_mbar, density, path=None):
     """config.py icindeki SURFACE_PRESSURE_MBAR ve FLUID_DENSITY satirlarini
     yeni degerlerle degistirir. Once .bak yedegi alinir."""
+    if path is None:
+        path = CONFIG_PATH
     shutil.copy(path, path + ".bak")
     with open(path) as f:
         text = f.read()
@@ -95,7 +97,8 @@ def write_config(surface_mbar, density,
 
     with open(path, "w") as f:
         f.write(text)
-    print(f"\nconfig.py guncellendi. Eski hali: {path}.bak")
+    print(f"\nconfig.py guncellendi: {path}")
+    print(f"Yedek: {path}.bak")
 
 
 def verify(sensor, surface_mbar):
