@@ -71,6 +71,9 @@ class Ms5837:
         """I2C baglantisini acar, sensoru resetler ve fabrika kalibrasyon
         katsayilarini okur. osr verilmezse config.DEPTH_OSR kullanilir."""
         from smbus2 import SMBus
+        import threading
+
+        self._conv_lock = threading.Lock()
 
         osr = DEPTH_OSR if osr is None else osr
         if osr not in _OSR_TABLE:
@@ -133,8 +136,9 @@ class Ms5837:
         """Ham basinc (D1) ve sicaklik (D2) okumalarini PROM katsayilariyla
         birlestirip kalibre edilmis basinci mbar cinsinden dondurur.
         Yan etki: self.pressure_mbar ve self.temp_c guncellenir."""
-        D1 = self._convert(self.CMD_CONV_D1)
-        D2 = self._convert(self.CMD_CONV_D2)
+        with self._conv_lock:
+            D1 = self._convert(self.CMD_CONV_D1)
+            D2 = self._convert(self.CMD_CONV_D2)
         C = self.C
         dT = D2 - C[5] * 256
         SENS = C[1] * 32768 + (C[3] * dT) / 256

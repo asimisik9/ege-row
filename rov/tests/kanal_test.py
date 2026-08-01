@@ -45,8 +45,15 @@ def us(ch, u):
     p.set_us(ch, u)
 
 
-raw = input("Kanal numaralari (virgullu, orn 0,1,2): ")
-channels = [int(x) for x in raw.replace(" ", "").split(",")]
+while True:
+    raw = input("Kanal numaralari (virgullu, orn 0,1,2): ")
+    if not raw.strip():
+        continue
+    try:
+        channels = [int(x) for x in raw.replace(" ", "").split(",")]
+        break
+    except ValueError:
+        print("Hatali giris, lutfen sadece virgulle ayrilmis sayilar girin.")
 
 for ch in channels:
     us(ch, NEUTRAL_US)
