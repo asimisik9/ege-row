@@ -576,7 +576,7 @@ class GCSHTTPRequestHandler(SimpleHTTPRequestHandler):
         # ── ADIM CEVABI TESTI
         if cmd == "step_start":
             kind = msg.get("kind", "depth")
-            if kind not in ("depth", "heading", "rate"):
+            if kind not in ("depth", "heading", "rate", "roll", "pitch"):
                 return {"ok": False, "error": f"Bilinmeyen test: {kind}"}
             g_ctx.operator.recorder.start(kind)
             return {"ok": True, "message": f"Adım kaydı başladı ({kind})"}

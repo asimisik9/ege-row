@@ -791,8 +791,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!isFinite(v)) { logConsole('Geçersiz hedef', 'warn'); return; }
       const name = current();
       if (name === 'roll' || name === 'pitch') {
-        logConsole('Roll/Pitch hedefi her zaman 0°\'dir — adım testi derinlik ' +
-                   'ya da heading üzerinden yapılır.', 'warn');
+        await sendCommand('step_start', { kind: name });
+        logConsole(`${name.toUpperCase()} adım kaydı başladı. Aracı elinizle bozup bırakın (0'a dönüş test edilir).`, 'info');
         return;
       }
       const key = name === 'heading' ? 'heading' : 'depth';

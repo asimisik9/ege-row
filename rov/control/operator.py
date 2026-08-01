@@ -55,15 +55,17 @@ class StepRecorder:
     kullanir — havuzda konsoldan ve web'den ayni sonucu gormek onemli.
     """
 
-    UNITS = {"depth": "m", "heading": "°", "rate": "°/s"}
+    UNITS = {"depth": "m", "heading": "°", "rate": "°/s", "roll": "°", "pitch": "°"}
 
     def __init__(self):
-        self.kind = None          # 'depth' | 'heading' | 'rate'
+        self.kind = None          # 'depth' | 'heading' | 'rate' | 'roll' | 'pitch'
         self.t0 = None
         self.rows = []            # (t, deger, hedef)
         self._lock = threading.Lock()
 
     def start(self, kind):
+        if kind not in ("depth", "heading", "rate", "roll", "pitch"):
+            raise ValueError(f"Invalid kind: {kind}")
         with self._lock:
             self.kind = kind
             self.rows = []
@@ -90,6 +92,10 @@ class StepRecorder:
             row = (t, getattr(snap, "heading", 0.0), stab.target_heading or 0.0)
         elif self.kind == "rate":
             row = (t, getattr(snap, "yaw_rate", 0.0), rate_target)
+        elif self.kind == "roll":
+            row = (t, getattr(snap, "roll", 0.0), 0.0)
+        elif self.kind == "pitch":
+            row = (t, getattr(snap, "pitch", 0.0), 0.0)
         else:
             return
         with self._lock:
@@ -193,6 +199,13 @@ class StepRecorder:
                 o.append("Dönüş hızı gürültülü: Kd'yi düşür.")
             o.append("Log'da yaw_sat sütunu daire boyunca 0 kalmalı — doyuyorsa "
                      "'circle' modunun out_limit'ini artır.")
+        elif kind in ("roll", "pitch"):
+            if asim > 5.0:
+                o.append(f"Aşım büyük (>5°): {kind} Kd'sini artır, Kp'yi düşür.")
+            if abs(kalici) > 2.0:
+                o.append(f"Kalıcı hata var (>2°): ağırlık merkezini (mekanik trim) kontrol et, sonra Ki eklenebilir.")
+            if rms > 1.5:
+                o.append("Çok fazla gürültü/titreme var: Kd'yi düşür, config.py'de ROLL_PITCH_FILTER_ALPHA'yı artır (ör: 0.99 veya 0.995).")
         if not o:
             o.append("Sonuçlar makul görünüyor. Değerleri config.py'a işlemeyi unutma.")
         return o

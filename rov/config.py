@@ -208,7 +208,8 @@ SURFACE_PRESSURE_MBAR = 1010.0  # kalibrasyon ile olculdu (calibrate_depth.py)
 
 # IMU fuzyon + kalibrasyon (cihaz uzerinde olculecek)
 USE_MAGNETOMETER = False  # EGE ROV donaniminda pusula modulu kullanilmiyor (AK8963 devre disi)
-HEADING_FILTER_ALPHA = 0.98  # jiroskop agirligi (0..1), kalani manyetometre
+HEADING_FILTER_ALPHA = 0.995  # Sensor verisi daha yumusak aksin diye artirildi
+ROLL_PITCH_FILTER_ALPHA = 0.995 # Sensor verisi daha yumusak aksin diye artirildi
 MAG_OFFSET = (0.0, 0.0, 0.0)         # manyetometreyi bosverdik simdilik
 MAG_SCALE  = (1.0, 1.0, 1.0)         # manyetometreyi bosverdik simdilik
 GYRO_BIAS  = (5.677, 0.82, -0.015)   # kalibrasyon ile olculdu

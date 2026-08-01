@@ -1,0 +1,2 @@
+nohup python3 rov/main.py --mission=video > gorev.log 2>&1 & tail -f gorev.log
+pkill -SIGINT -f "python3 rov/main.py"
