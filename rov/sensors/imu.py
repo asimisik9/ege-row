@@ -73,17 +73,23 @@ _bias_sagligi_uyar()
 class Mpu9250:
     """Gercek donanim. Kurulum: pip3 install smbus2"""
 
-    PWR_MGMT_1 = 0x6B
+    PWR_MGMT_1   = 0x6B
+    USER_CTRL    = 0x6A   # I2C master modu
     ACCEL_XOUT_H = 0x3B
-    GYRO_XOUT_H = 0x43
-    INT_PIN_CFG = 0x37
-    MAG_CNTL1 = 0x0A
-    MAG_HXL = 0x03
-    MAG_ST2 = 0x09
+    GYRO_XOUT_H  = 0x43
+    INT_PIN_CFG  = 0x37
+    MAG_CNTL1    = 0x0A
+    MAG_HXL      = 0x03
+    MAG_ST2      = 0x09
 
     def __init__(self, bus_num=None):
         """MPU-9250'yi uyandirir, dahili AK8963 manyetometreye I2C bypass
-        acar ve 16-bit/100Hz surekli moda alir."""
+        acar ve 16-bit/100Hz surekli moda alir.
+
+        Magnetometre ZORUNLU degil: Errno 121 (bypass calismadi, donanim
+        sorunu) durumunda has_mag=False ile devam eder. Bu durumda
+        heading = sadece jiroskop entegrasyonu ile hesaplanir (suruklenme olabilir).
+        """
         from smbus2 import SMBus
         buses_to_try = [bus_num] if bus_num is not None else [I2C_BUS, 8, 7, 1, 0]
         last_err = None
@@ -93,8 +99,9 @@ class Mpu9250:
                 bus = SMBus(b)
                 with I2C_LOCK:
                     bus.write_byte_data(IMU_ADDR, self.PWR_MGMT_1, 0x00)   # uyandir
-                time.sleep(0.05)
+                time.sleep(0.10)  # guc stabilizasyonu icin bekleme
                 self.bus = bus
+                self._bus_num = b
                 print(f"[IMU] MPU-9250 I2C Bus {b} (0x68) uzerinde baglandi.")
                 break
             except Exception as e:
@@ -103,12 +110,37 @@ class Mpu9250:
             raise RuntimeError(
                 f"MPU-9250 IMU sensorune baglanilamadi (Denenen Buslar: {buses_to_try}): {last_err}")
 
+        # AK8963 bypass aktivasyonu:
+        # 1) USER_CTRL: I2C master modu KAPAT (0x00) — acik kalirsa bypass calismaz
+        # 2) INT_PIN_CFG: BYPASS_EN (bit1) = 0x02 — AK8963'u direkt I2C'ye bag
+        # 3) Uzun bekleme — chip bypass modunu tanimak icin zaman gerekiyor
         with I2C_LOCK:
-            self.bus.write_byte_data(IMU_ADDR, self.INT_PIN_CFG, 0x02)  # mag'a bypass
+            self.bus.write_byte_data(IMU_ADDR, self.USER_CTRL, 0x00)
         time.sleep(0.05)
         with I2C_LOCK:
-            self.bus.write_byte_data(MAG_ADDR, self.MAG_CNTL1, 0x16)    # 16bit, 100Hz
-        time.sleep(0.05)
+            self.bus.write_byte_data(IMU_ADDR, self.INT_PIN_CFG, 0x02)
+        time.sleep(0.15)  # bypass aktiflesme icin yeterli bekleme
+
+        # AK8963 magnetometre init — non-fatal (3 deneme)
+        self.has_mag = False
+        for attempt in range(3):
+            try:
+                with I2C_LOCK:
+                    self.bus.write_byte_data(MAG_ADDR, self.MAG_CNTL1, 0x16)  # 16bit, 100Hz
+                time.sleep(0.05)
+                self.has_mag = True
+                print(f"[IMU] AK8963 manyetometre aktif (Bus {self._bus_num}).")
+                break
+            except OSError as e:
+                if attempt < 2:
+                    print(f"[IMU] AK8963 deneme {attempt+1}/3 basarisiz (Errno {e.errno}), bekleniyor...")
+                    time.sleep(0.20)
+                else:
+                    print(
+                        f"[IMU UYARI] AK8963 manyetometre erisilemedi (Errno {e.errno}).\n"
+                        "            Olasilik: bypass registeri yazilmadi, kablo sorunu,\n"
+                        "            veya IC donanim hatasi. Gyroskop+ivmeolcer CALISMAYI SURDURUYOR.\n"
+                        "            Heading = sadece jiroskop entegrasyonu (zamanla suruklenebilir).")
 
     # ------------------------------------------------------------- ham okuma
     def _read_i16(self, addr, reg, little=False):
@@ -147,16 +179,25 @@ class Mpu9250:
 
     def read_mag_ut_raw(self):
         """Uc eksen manyetik alan, KALIBRASYONSUZ, mikroTesla.
-        AK8963 little-endian; ST2 okunmadan yeni veri gelmez."""
-        m = tuple(self._read_i16(MAG_ADDR, self.MAG_HXL + 2 * i, little=True) * 0.15
-                  for i in range(3))
-        with I2C_LOCK:
-            self.bus.read_byte_data(MAG_ADDR, self.MAG_ST2)
-        return m
+        AK8963 little-endian; ST2 okunmadan yeni veri gelmez.
+        Manyetometre yoksa (has_mag=False) None dondurur."""
+        if not self.has_mag:
+            return None
+        try:
+            m = tuple(self._read_i16(MAG_ADDR, self.MAG_HXL + 2 * i, little=True) * 0.15
+                      for i in range(3))
+            with I2C_LOCK:
+                self.bus.read_byte_data(MAG_ADDR, self.MAG_ST2)
+            return m
+        except OSError:
+            return None
 
     def read_mag_ut(self):
-        """Hard/soft iron kalibrasyonu uygulanmis manyetik alan."""
+        """Hard/soft iron kalibrasyonu uygulanmis manyetik alan.
+        Manyetometre yoksa None dondurur."""
         m = self.read_mag_ut_raw()
+        if m is None:
+            return None
         return tuple((m[i] - MAG_OFFSET[i]) * MAG_SCALE[i] for i in range(3))
 
 
@@ -236,18 +277,23 @@ class Orientation:
         self.pitch = a * (self.pitch + gy * dt) + (1 - a) * acc_pitch
 
         # heading: jiroskop entegrasyonu + manyetometre duzeltmesi
-        mag_norm = math.sqrt(sum(v * v for v in mag))
-        mag_gecerli = MAG_MIN_UT < mag_norm < MAG_MAX_UT
-
-        if mag_gecerli:
-            mag_h = self._mag_heading(mag, math.radians(self.roll),
-                                      math.radians(self.pitch))
-            self.mag_heading = mag_h
-        else:
-            # Havuz kenarindaki demir donati / motor akimi pusulayi bozdu.
-            # Bu adimda duzeltmeyi ATLA, jiroskopla devam et.
-            self.mag_rejected += 1
+        # mag=None: has_mag=False veya I/O hatasi -> gyro-only yol
+        if mag is None:
             mag_h = None
+            self.mag_rejected += 1
+        else:
+            mag_norm = math.sqrt(sum(v * v for v in mag))
+            mag_gecerli = MAG_MIN_UT < mag_norm < MAG_MAX_UT
+
+            if mag_gecerli:
+                mag_h = self._mag_heading(mag, math.radians(self.roll),
+                                          math.radians(self.pitch))
+                self.mag_heading = mag_h
+            else:
+                # Havuz kenarindaki demir donati / motor akimi pusulayi bozdu.
+                # Bu adimda duzeltmeyi ATLA, jiroskopla devam et.
+                self.mag_rejected += 1
+                mag_h = None
 
         if self.heading is None:
             self.heading = mag_h if mag_h is not None else 0.0

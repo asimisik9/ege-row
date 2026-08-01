@@ -216,7 +216,8 @@ HEADING_FILTER_ALPHA = 0.98  # jiroskop agirligi (0..1), kalani manyetometre
 MAG_OFFSET = (-11.1, -11.47, 38.47)  # kalibrasyon ile olculdu
 MAG_SCALE  = (1.179, 0.876, 0.989)  # kalibrasyon ile olculdu
 GYRO_BIAS  = (5.677, 0.82, -0.015)  # kalibrasyon ile olculdu
-ACCEL_BIAS = (2.0, -2.0, -0.296)  # kalibrasyon ile olculdu
+ACCEL_BIAS = (0.0, 0.0, 0.0)  # SIFIRLANDIT: (2.0, -2.0, -0.296) ariza kalibrasyon degerleridir.
+                               # ROV hareketsizken calibrate_imu.py ile yeniden olc.
 
 # ---------------------------------------------------------------- loglama
 LOG_DIR = "logs"
