@@ -15,6 +15,10 @@ KULLANIM (Jetson uzerinde, PERVANELER TAKILI DEGILKEN):
 import sys
 import time
 import config
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import (MOTOR_CHANNELS, PCA9685_REF_CLOCK_HZ, FREQ_HZ,
                     PWM_NEUTRAL_US, PWM_MIN_US, PWM_MAX_US)
 

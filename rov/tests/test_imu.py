@@ -13,6 +13,10 @@ Kullanım (Jetson):
 import sys
 import time
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import GYRO_BIAS, MAG_OFFSET, MAG_SCALE, I2C_BUS, IMU_ADDR
 from sensors.imu import Mpu9250, Orientation
 

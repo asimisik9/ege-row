@@ -24,6 +24,10 @@ import argparse
 import sys
 import time
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import (LOOP_HZ, PWM_NEUTRAL_US, PWM_RANGE_US, PWM_DEADBAND_US,
                     THRUST_LIMIT, ESC_ABS_MIN_US, ESC_ABS_MAX_US)
 from control.mixer import mix

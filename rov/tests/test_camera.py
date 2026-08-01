@@ -23,6 +23,10 @@ except ImportError:
     print("[HATA] OpenCV (cv2) bulunamadı! Yüklemek için: sudo apt install python3-opencv")
     sys.exit(1)
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import CSI_CAMERA, CAM_WIDTH, CAM_HEIGHT, CAM_FPS, CAM_SENSOR_ID
 
 # Global Son Kare (MJPEG Web Akışı İçin)

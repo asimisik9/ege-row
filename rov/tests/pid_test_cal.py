@@ -24,6 +24,10 @@ import shutil
 import threading
 import statistics
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import (
     LOOP_HZ, SIM_MODE,
     PID_DEPTH, PID_HEADING, PID_ROLL, PID_PITCH,

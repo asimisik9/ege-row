@@ -22,6 +22,10 @@ Gorev 1 degerlendirme (sartnameden):
 import time
 import threading
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import (LOOP_HZ, MISSION, LINE_TARGET_DEPTH, LINE_PIPE_DEPTH,
                     LINE_CRUISE_SURGE, LINE_APPROACH_SURGE,
                     VISION_KP, VISION_MAX_YAW, PIPE_ALIGN_TOL)

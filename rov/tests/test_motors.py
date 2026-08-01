@@ -13,6 +13,10 @@ GUVENLIK:
 import sys
 import time
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from hal.thrusters import Thrusters, PCA9685Backend
 from config import MOTOR_CHANNELS, PWM_NEUTRAL_US, PWM_DEADBAND_US, PWM_RANGE_US
 

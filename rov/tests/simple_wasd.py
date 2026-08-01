@@ -30,9 +30,12 @@ except ImportError:
     _HW_OK = False
     print("[UYARI] PCA9685 kütüphanesi bulunamadı! Simülasyon modunda çalışıyor.")
 
-# ── PWM ve Kanal Ayarları (tek kaynak: config.py)
-from config import (PWM_NEUTRAL_US, PWM_RANGE_US, PWM_MIN_US, PWM_MAX_US,
-                    FREQ_HZ, MOTOR_CHANNELS, MOTOR_DIRECTION)
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from config import (PWM_NEUTRAL_US, PWM_RANGE_US, PWM_MIN_US, PWM_MAX_US, FREQ_HZ,
+                    MOTOR_CHANNELS, MOTOR_DIRECTION)
 
 NEUTRAL_US = PWM_NEUTRAL_US
 MAX_SPAN_US = PWM_RANGE_US
@@ -44,8 +47,6 @@ class ThrusterDriver:
         self.dev = None
         if _HW_OK:
             try:
-                # hal/i2c.py ölçülmüş referans saatle prescale yazar; onsuz kart
-                # 58.1Hz'e kaçar (darbeler %14 kısa).
                 self.dev = pca9685_ac(freq_hz=FREQ_HZ)
             except Exception as e:
                 print(f"[HATA] PCA9685 bağlanamadı:\n{e}")
@@ -69,6 +70,7 @@ class ThrusterDriver:
         """
         -1.0 ile +1.0 arasındaki eksen komutlarını motorlara dağıtır.
         """
+        
         # Yatay motor mikseri (Surge + Yaw + Sway)
         h_l = surge + yaw + sway
         h_r = surge - yaw - sway
@@ -89,7 +91,7 @@ class ThrusterDriver:
             "V_RR": max(-1.0, min(1.0, v_rr)),
         }
 
-        # PWM hesapla ve kanallara yaz (config.py MOTOR_DIRECTION yon duzeltmesiyle)
+        # PWM hesapla ve kanallara yaz (config.py MOTOR_DIRECTION yon duzeltmesini uygula)
         for name, ch in CHANNELS.items():
             val = cmds[name] * MOTOR_DIRECTION.get(name, 1)
             us_val = NEUTRAL_US + (val * MAX_SPAN_US)

@@ -6,6 +6,10 @@ Ms5837 sınıfının ham ADC okumalarını, PROM katsayılarını ve hesaplama a
 import sys
 import time
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import I2C_BUS, DEPTH_ADDR
 from sensors.depth import Ms5837
 

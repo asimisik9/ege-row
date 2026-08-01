@@ -10,6 +10,10 @@ Daire kosede cizilir, cikista heading daire oncesinden +90 olmalidir;
 bunu jiroskop toplami (360 sayma) + son heading kilidi ile sagliyoruz.
 """
 import time
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import MISSION
 from control.mixer import mix
 from control.pid import angle_error_deg

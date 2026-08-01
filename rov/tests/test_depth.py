@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 """
 EGE ROV — MS5837-30BA Derinlik ve Basınç Sensörü Doğrulama Testi.
 

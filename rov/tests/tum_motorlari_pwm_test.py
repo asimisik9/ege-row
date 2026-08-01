@@ -11,6 +11,10 @@ Her testten once ve test bittiginde motorlar 1750 us notre alinir.
 import argparse
 import time
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import (
     MOTOR_CHANNELS,
     PWM_MAX_US,

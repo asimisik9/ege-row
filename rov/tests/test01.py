@@ -1,6 +1,10 @@
 import time, board, busio
 from adafruit_pca9685 import PCA9685
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import PWM_NEUTRAL_US, PCA9685_REF_CLOCK_HZ, FREQ_HZ
 
 i2c = busio.I2C(board.SCL, board.SDA)

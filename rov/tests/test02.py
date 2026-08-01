@@ -15,6 +15,10 @@ import config
 if "--sim" in sys.argv:
     config.SIM_MODE = True
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import LOOP_HZ, MISSION
 from main import build_system
 from control.stabilizer import Stabilizer

@@ -15,6 +15,10 @@ Guvenlik: pervanesiz test et!
 """
 import sys
 import time
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import PWM_NEUTRAL_US, FREQ_HZ
 
 from hal.i2c import pca9685_ac

@@ -24,6 +24,10 @@ Sartnameden:
 import math
 import time
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import (LOOP_HZ, MISSION, NAV_TARGET_DEPTH, NAV_CRUISE_SURGE,
                     BUOY_ORBIT_RADIUS_M, BUOY_ORBIT_SPEED, BUOY_ORBIT_YAW,
                     BUOY_ORBIT_DEG, GPS_TIMEOUT_S, VISION_KP, VISION_MAX_YAW)
