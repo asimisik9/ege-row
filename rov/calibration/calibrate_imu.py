@@ -288,9 +288,14 @@ Sonuçlar:
     mount_roll, mount_pitch, accel_bias = calibrate_accel_and_mount(imu, duration_s=5.0)
 
     # ── 3) Manyetometre
-    print()
-    input("Pusula kalibrasyonu için ENTER (ardından 15 sn boyunca çevir)...")
-    mag_offset, mag_scale = calibrate_mag(imu, duration_s=15.0)
+    from config import USE_MAGNETOMETER
+    if USE_MAGNETOMETER:
+        print()
+        input("Pusula kalibrasyonu için ENTER (ardından 15 sn boyunca çevir)...")
+        mag_offset, mag_scale = calibrate_mag(imu, duration_s=15.0)
+    else:
+        print("\n[BİLGİ] config.py'de USE_MAGNETOMETER = False. Manyetometre kalibrasyonu ATLANACAK.")
+        mag_offset, mag_scale = (0.0, 0.0, 0.0), (1.0, 1.0, 1.0)
 
     # ── Özet
     print("\n" + "=" * 65)
