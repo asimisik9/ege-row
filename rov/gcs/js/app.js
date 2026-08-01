@@ -302,7 +302,6 @@ document.addEventListener('DOMContentLoaded', () => {
     slider(sldThrust, 'sv-thrust', 'set_limits', 'thrust_limit', v => v.toFixed(2));
     slider(sldSlew, 'sv-slew', 'set_limits', 'slew_rate', v => v.toFixed(1));
 
-    // Mutlak hedefler
     on('btn-tgt-depth', 'click', () => {
       const v = parseFloat(($('tgt-depth') || {}).value);
       if (!isFinite(v)) return logConsole('Geçersiz derinlik', 'warn');
@@ -313,6 +312,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!isFinite(v)) return logConsole('Geçersiz yön', 'warn');
       sendCommand('set_target', { heading: v });
     });
+    on('btn-tgt-roll', 'click', () => {
+      const v = parseFloat(($('tgt-roll') || {}).value);
+      if (!isFinite(v)) return logConsole('Geçersiz yatış (roll)', 'warn');
+      sendCommand('set_target', { roll: v });
+    });
 
     // Bagil hedefler (+10 cm, -90 derece ...) — havuzda en cok kullanilan
     document.querySelectorAll('[data-depth]').forEach(b =>
@@ -321,9 +325,13 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-hdg]').forEach(b =>
       b.addEventListener('click', () =>
         sendCommand('set_target', { heading_rel: parseFloat(b.dataset.hdg) })));
+    document.querySelectorAll('[data-roll]').forEach(b =>
+      b.addEventListener('click', () =>
+        sendCommand('set_target', { roll_rel: parseFloat(b.dataset.roll) })));
 
     on('btn-clear-depth', 'click', () => sendCommand('clear_target', { axis: 'depth' }));
     on('btn-clear-heading', 'click', () => sendCommand('clear_target', { axis: 'heading' }));
+    on('btn-clear-roll', 'click', () => sendCommand('clear_target', { axis: 'roll' }));
 
     on('btn-tgt-rate', 'click', () => {
       const v = parseFloat(($('tgt-rate') || {}).value);
@@ -345,8 +353,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function update(data) {
       set('live-depth', num(data.depth) ? data.depth.toFixed(2) : '—');
       set('live-heading', num(data.heading) ? data.heading.toFixed(1) : '—');
+      set('live-roll', num(data.roll) ? data.roll.toFixed(1) : '—');
       set('live-tgt-depth', data.depth_locked ? data.target_depth.toFixed(2) : '—');
       set('live-tgt-heading', data.heading_locked ? data.target_heading.toFixed(1) : '—');
+      set('live-tgt-roll', data.roll_locked ? data.target_roll.toFixed(1) : '—');
 
       if (selHmode && data.heading_mode && selHmode.value !== data.heading_mode
           && document.activeElement !== selHmode) {

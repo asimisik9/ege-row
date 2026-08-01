@@ -56,6 +56,8 @@ class Stabilizer:
 
         self.target_depth = None
         self.target_heading = None
+        self.target_roll = None
+        self.target_pitch = None
 
         # Son anlik goruntu — gorev kodu ve logger BUNU okur, sensoru tekrar
         # okumaz (SORUN 8). compute() her cagrildiginda tazelenir.
@@ -64,8 +66,8 @@ class Stabilizer:
         self.heading_deg = 0.0
 
     # ------------------------------------------------------------- hedefler
-    def set_targets(self, depth_m=None, heading_deg=None):
-        """Derinlik ve/veya yon hedefini gunceller.
+    def set_targets(self, depth_m=None, heading_deg=None, roll_deg=None, pitch_deg=None):
+        """Derinlik, yon, roll ve pitch hedeflerini gunceller.
 
         Hedef GERCEKTEN degistiyse ilgili denetleyici reset edilir; aksi
         halde eski I birikimi yeni hedefe sicrar. None gecilen eksen
@@ -78,6 +80,12 @@ class Stabilizer:
             if hd != self.target_heading:
                 self.target_heading = hd
                 self.pid_heading.reset()
+        if roll_deg is not None and roll_deg != self.target_roll:
+            self.target_roll = roll_deg
+            self.pid_roll.reset()
+        if pitch_deg is not None and pitch_deg != self.target_pitch:
+            self.target_pitch = pitch_deg
+            self.pid_pitch.reset()
 
     def set_heading_mode(self, mode):
         """'cruise' (duz seyir) / 'turn' (yerinde donus) — bkz. cascade.py"""
@@ -168,9 +176,12 @@ class Stabilizer:
             yaw = 0.0
 
         # ---- ROLL / PITCH -------------------------------------------------
-        # Hedef her zaman 0 derece (duz durus). D terimi jiroskoptan.
-        # deadzone sayesinde kucuk acilarda hic karismaz (gereksiz titreme yok).
-        roll = self.pid_roll.update(-s.roll, meas_rate=s.gyro_x, now=now)
-        pitch = self.pid_pitch.update(-s.pitch, meas_rate=s.gyro_y, now=now)
+        # Hedef atanmissa kullanir, yoksa 0 derece (duz durus) hedefler.
+        # D terimi jiroskoptan. deadzone sayesinde kucuk acilarda hic karismaz.
+        t_roll = self.target_roll or 0.0
+        roll = self.pid_roll.update(t_roll - s.roll, meas_rate=s.gyro_x, now=now)
+        
+        t_pitch = self.target_pitch or 0.0
+        pitch = self.pid_pitch.update(t_pitch - s.pitch, meas_rate=s.gyro_y, now=now)
 
         return dict(surge=surge, yaw=yaw, heave=heave, roll=roll, pitch=pitch)

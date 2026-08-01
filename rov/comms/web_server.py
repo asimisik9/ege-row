@@ -181,6 +181,8 @@ class GCSContext:
                 "heading_locked": s.target_heading is not None,
                 "pitch": round(_g(snap, "pitch", getattr(ori, "pitch", 0.0)), 1),
                 "roll": round(_g(snap, "roll", getattr(ori, "roll", 0.0)), 1),
+                "target_roll": round(s.target_roll or 0.0, 1),
+                "roll_locked": s.target_roll is not None,
                 "yaw_rate": round(_g(snap, "yaw_rate", getattr(ori, "yaw_rate", 0.0)), 2),
                 # SORUN 2/8: web thread'i sensoru OKUMUYOR. Eskiden buradaki
                 # read_depth_m() 40 ms I2C bloklamasi yapiyordu — ustelik
@@ -456,7 +458,9 @@ class GCSHTTPRequestHandler(SimpleHTTPRequestHandler):
 
             d = _safe_float(msg.get("depth"))
             h = _safe_float(msg.get("heading"))
-            # Bagil hedef: "+90" -> mevcut yonun 90 derece sagi
+            r = _safe_float(msg.get("roll"))
+            
+            # Bagil hedefler
             if msg.get("heading_rel") is not None:
                 rel = _safe_float(msg.get("heading_rel"))
                 if rel is not None:
@@ -465,31 +469,45 @@ class GCSHTTPRequestHandler(SimpleHTTPRequestHandler):
                 rel = _safe_float(msg.get("depth_rel"))
                 if rel is not None:
                     d = max(0.0, getattr(stab, "depth_m", 0.0) + rel)
+            if msg.get("roll_rel") is not None:
+                rel = _safe_float(msg.get("roll_rel"))
+                if rel is not None:
+                    curr_r = getattr(stab.snap, "roll", 0.0) if getattr(stab, "snap", None) else 0.0
+                    r = curr_r + rel
 
-            if d is None and h is None:
+            if d is None and h is None and r is None:
                 return {"ok": False, "error": "Hedef verilmedi"}
 
             if d is not None:
                 d = max(0.0, min(float(getattr(config, "MAX_DEPTH_M", 10.0)), d))
             if h is not None:
                 h = float(h) % 360.0
-
-            stab.set_targets(depth_m=d, heading_deg=h)
+            if r is not None:
+                r = float(r)
+                
+            stab.set_targets(depth_m=d, heading_deg=h, roll_deg=r)
 
             # Adim cevabi kaydini otomatik baslat: hedef degisimi = adim girdisi
             if msg.get("record", True):
-                g_ctx.operator.recorder.start("depth" if d is not None else "heading")
+                if d is not None:
+                    g_ctx.operator.recorder.start("depth")
+                elif h is not None:
+                    g_ctx.operator.recorder.start("heading")
+                elif r is not None:
+                    g_ctx.operator.recorder.start("roll")
 
             parts = []
             if d is not None:
                 parts.append(f"derinlik {d:.2f} m")
             if h is not None:
                 parts.append(f"yön {h:.1f}°")
+            if r is not None:
+                parts.append(f"roll {r:.1f}°")
             return {"ok": True, "message": "Hedef: " + ", ".join(parts),
                     "target_depth": stab.target_depth,
-                    "target_heading": stab.target_heading}
+                    "target_heading": stab.target_heading,
+                    "target_roll": stab.target_roll}
 
-        # ── HEDEFI BIRAK (PID o ekseni artik tutmaz)
         if cmd == "clear_target":
             stab = g_ctx.stabilizer
             if not stab:
@@ -501,6 +519,9 @@ class GCSHTTPRequestHandler(SimpleHTTPRequestHandler):
             if axis in ("heading", "both"):
                 stab.target_heading = None
                 stab.pid_heading.reset()
+            if axis in ("roll", "both"):
+                stab.target_roll = None
+                stab.pid_roll.reset()
             return {"ok": True, "message": f"Hedef bırakıldı: {axis}"}
 
         # ── DONUS HIZI HEDEFI (daire) / ILERI GAZ / HOVER GAZI

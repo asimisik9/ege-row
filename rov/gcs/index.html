@@ -261,6 +261,24 @@
         </div>
 
         <div class="card-section">
+          <div class="card-title">ROLL (YATIŞ) HEDEFİ</div>
+          <div class="target-row">
+            <input type="number" id="tgt-roll" step="1" placeholder="derece (ör: 0)">
+            <button class="btn btn-act" id="btn-tgt-roll">UYGULA</button>
+          </div>
+          <div class="nudge-row">
+            <button class="btn btn-nudge" data-roll="-15">−15°</button>
+            <button class="btn btn-nudge" data-roll="-5">−5°</button>
+            <button class="btn btn-nudge" data-roll="5">+5°</button>
+            <button class="btn btn-nudge" data-roll="15">+15°</button>
+          </div>
+          <div class="target-live">
+            şu an: <b id="live-roll">0.0</b>° &nbsp;→&nbsp; hedef: <b id="live-tgt-roll">—</b>°
+            <button class="btn btn-mini" id="btn-clear-roll">BIRAK</button>
+          </div>
+        </div>
+
+        <div class="card-section">
           <div class="card-title">İLERİ GAZ / DÖNÜŞ HIZI</div>
           <div class="slider-row">
             <label>Surge</label>
