@@ -1,3 +1,13 @@
+"""
+!!! BU SCRIPT ARTIK KULLANILMIYOR — YERINE:  python3 pid_tune.py  !!!
+
+Sebep:
+Sensoru kendi dongusunde bloklyarak okuyor (SORUN 2) ve katsayi
+degistirirken I birikimini sifirlamiyor -> sonuclari yaniltici.
+
+Dosya sadece referans icin duruyor. Havuzda pid_tune.py kullan.
+"""
+
 #!/usr/bin/env python3
 """
 EGE ROV — Canlı Etkileşimli ve Adım Yanıtlı PID Kalibrasyon Scripti.

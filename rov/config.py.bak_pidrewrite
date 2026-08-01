@@ -65,116 +65,11 @@ MOTOR_DIRECTION = {
 }
 
 # ---------------------------------------------------------------- PID katsayilari
-# ============================================================================
-# BU BOLUM YENIDEN TASARLANDI — bkz. PID_TASARIM_PLANI.md ve PID_BASIT_ANLATIM.md
-# ============================================================================
-# Anlamlar (control/pid.py):
-#   kp/ki/kd  : klasik PID katsayilari
-#   out_limit : cikis siniri (1.0 = tam gaz)
-#   i_limit   : I teriminin CIKIS BIRIMINDEKI ust siniri.
-#               0.4 -> I tek basina en fazla %40 gaz verebilir.
-#               (Eskiden ham birikim birimindeydi, kimse yorumlayamiyordu.)
-#   d_tau     : D teriminin filtre ZAMAN SABITI (sn). Buyuk = yumusak ama gec.
-#   deadzone  : |hata| bunun altindaysa PID hic karismaz (titremeyi onler)
-#   ff        : ileri besleme (feed-forward)
-
-# --- DERINLIK -----------------------------------------------------------
-# ff = FF_HOVER: aracin 'asili kalma' gucu. Arac POZITIF KALDIRMA kuvvetli
-# (arıza halinde yuzsun diye) — yani sabit derinlikte DURMAK bile surekli
-# asagi itki ister. Eskiden bunu tek basina I terimi tasiyordu: yavas ve
-# windup uretiyordu. Simdi bilinen kismi ff veriyor, PID sadece artigi duzeltiyor.
-#
-# !!! FF_HOVER HAVUZDA OLCULECEK !!!  (havuz protokolu Adim 2)
-#     python3 pid_tune.py  ->  'hover'  komutu
-FF_HOVER = 0.0               # 0.0 = olculmedi. Beklenen aralik 0.15 .. 0.40
-
-PID_DEPTH = dict(
-    kp=1.5, ki=0.15, kd=0.6,
-    out_limit=1.0,      # dikey eksende tam yetki
-    i_limit=0.40,       # I tek basina en fazla %40 gaz
-    d_tau=0.30,         # dikey hiz olcumu gurultulu -> biraz daha yumusak
-    deadzone=0.0,       # derinlikte olu bolge YOK (5 cm bile onemli)
-    ff=FF_HOVER,
-)
-
-# --- YON (KASKAD) -------------------------------------------------------
-# Tek PID yerine ic ice iki katman (control/cascade.py):
-#   DIS  : aci hatasi  -> istenen donus hizi (derece/sn), UST SINIRLI
-#   IC   : istenen donus hizi -> motor komutu (jiroskop geri beslemeli)
-# Kazanc: donus hizi dogrudan sinirlanir (asim ↓), jiroskop OLCUM olarak
-# kullanilir (turev gurultusu yok), batarya/akinti farkini ic dongu emer.
-HEADING_POS = dict(
-    kp=1.2,             # 1 derece hata -> 1.2 derece/sn donus istegi
-)
-HEADING_RATE = dict(
-    kp=0.020,           # 30 dps hata -> 0.60 komut (tam yetki). Mantikli baslangic.
-    ki=0.010,           # akinti/motor asimetrisinden kalan kalici hatayi siler
-    kd=0.0,             # ic dongude D genelde gerekmez; gerekirse havuzda ekle
-    # i_limit NEDEN out_limit KADAR BUYUK:
-    #   HIZ dongusunde kalici komutun ASIL kaynagi I terimidir. P sadece
-    #   HATAYA tepki verir; hedefe yaklastikca P kuculur ve sifira gider.
-    #   Yani "30 dps'de sabit donmek" icin gereken kalici gazi I tasir.
-    #   Simulasyonda i_limit=0.25 iken kontrolcu 30 dps hedefine ULASAMADI,
-    #   25 dps'de dengelendi (P=0.10 + I=0.25 tavan = 0.35 komut).
-    #   Bu, daire capini da hedefledigimiz degil ULASILABILEN deger yapar.
-    #   Kural: hiz dongusunde i_limit ~ out_limit.
-    i_limit=0.55,
-    d_tau=0.10,
-)
-# Iki calisma modu — duz seyirde araci sert dondurmek rotayi bozar.
-HEADING_MODES = dict(
-    cruise=dict(w_max_dps=15.0, out_limit=0.35),   # duz segmentler
-    turn=dict(w_max_dps=30.0, out_limit=0.60),     # yerinde 90 derece donus
-    circle=dict(w_max_dps=45.0, out_limit=0.55),   # daire (sabit donus hizi)
-)
-# NEDEN AYRI 'circle' MODU:
-#   Simulasyon testinde daire, 'cruise' modunun out_limit=0.35 yetkisiyle
-#   calisiyordu. Istenen donus hizi 60 dps iken ancak ~24 dps uretilebildi;
-#   yani ic dongu DOYGUNDU ve daire capi hedeflenen degil ULASILABILEN
-#   degere gore olustu — tam da kacinmak istedigimiz durum.
-#   Daire yetkisi ayri tanimlanir; ic dongu doymadan hedef hizi tutabilmeli.
-#   HAVUZDA KONTROL: log'da yaw_sat sutunu daire boyunca 0 kalmali.
-
-# --- ROLL / PITCH -------------------------------------------------------
-# NOT: Once MEKANIK TRIM. Arac motorlar kapaliyken +-3 derece icinde durmali.
-# PID mekanik dengesizligi duzeltemez; sadece kalan kucuk sapmayi toplar.
-# deadzone=2.0: 2 derecenin altinda hic karisma (gereksiz titreme yok).
-# D terimi jiroskoptan geliyor (turev yok).
-PID_ROLL  = dict(kp=0.020, ki=0.0, kd=0.010, out_limit=0.25,
-                 i_limit=0.05, d_tau=0.10, deadzone=2.0, ff=0.0)
-PID_PITCH = dict(kp=0.020, ki=0.0, kd=0.010, out_limit=0.25,
-                 i_limit=0.05, d_tau=0.10, deadzone=2.0, ff=0.0)
-
-# --- ESKI SURUM UYUMU ---------------------------------------------------
-# auto_pid.py gibi eski scriptler bunu import ediyor. Yon kontrolu artik
-# kaskad; bu deger KULLANILMIYOR, sadece import hatasi olmasin diye duruyor.
-PID_HEADING = dict(kp=0.02, ki=0.0, kd=0.008, out_limit=0.6, i_limit=0.2)
-
-# ---------------------------------------------------------------- kontrol dongusu
-# SORUN 2: gercek donanimda dongu 50 Hz yerine 7.3 Hz'de calisiyordu
-# (derinlik sensoru her okumada 40 ms bloklyordu ve dongu basina 3 kez okunuyordu).
-# Cozum: sensorler ayri thread'lerde (sensors/state.py), kontrol dongusu
-# sadece hafizadan okuyor.
-IMU_THREAD_HZ    = 100.0     # IMU okuma frekansi (kendi thread'inde)
-DEPTH_THREAD_HZ  = 20.0      # derinlik okuma frekansi (kendi thread'inde)
-DEPTH_RATE_TAU   = 0.30      # derinlik HIZI filtresi zaman sabiti (sn)
-SENSOR_STALE_S   = 0.5       # bu surede veri gelmezse watchdog motorlari keser
-DEPTH_OSR        = 1024      # MS5837 hassasiyeti. 1024 -> ~2 mm, 3 ms bekleme.
-                             # Eskiden 8192 idi -> 20 ms bekleme x2 = 40 ms.
-LOOP_WARN_HZ     = 25.0      # dongu bunun altina duserse ekrana uyari bas
-
-# ---------------------------------------------------------------- olu bant telafisi
-# SORUN 3: PWM_DEADBAND_US=30 / PWM_RANGE_US=470 = 0.0638
-# Komutun %6.4'unden kucugu motora HIC ulasmiyordu -> roll/pitch PID'i
-# 6.4 derecenin altinda hic calismiyordu. Telafi control/mixer.py'de.
-DEADBAND_COMPENSATION = True   # havuzda sorun cikarsa False yapip test et
-DEADBAND_EPS = 0.01            # bunun altindaki komut GERCEKTEN sifir
-
-# ---------------------------------------------------------------- jiroskop gurultusu
-# SORUN 6: daire sayaci abs(yaw_rate) ile topluyordu; jiroskop gurultusu
-# bile birikip 40 saniyede ~20 derece sahte donus uretiyordu.
-# Artik ISARETLI toplama + bu esigin altini yoksayma var.
-GYRO_NOISE_DPS = 1.0
+# Cihaz verisiyle optimize edilecek ana degerler bunlar.
+PID_DEPTH   = dict(kp=2.0,  ki=0.1,  kd=0.8,  out_limit=1.0, i_limit=0.3)
+PID_HEADING = dict(kp=0.02, ki=0.0,  kd=0.008, out_limit=0.6, i_limit=0.2)  # giris: derece
+PID_ROLL    = dict(kp=0.01, ki=0.0,  kd=0.004, out_limit=0.3, i_limit=0.1)
+PID_PITCH   = dict(kp=0.01, ki=0.0,  kd=0.004, out_limit=0.3, i_limit=0.1)
 
 # ---------------------------------------------------------------- gorev (video gosterimi)
 MISSION = dict(
@@ -186,19 +81,9 @@ MISSION = dict(
     turn_tol_deg     = 5.0,   # donus tamamlandi toleransi
     turn_settle_s    = 1.5,   # donus sonrasi sabitlenme suresi
     turn_timeout_s   = 15.0,
-    # --- DAIRE: artik sabit KOMUT degil, sabit DONUS HIZI hedefi ---
-    # Eski yontemde sabit yaw komutu veriliyordu; cap bataryaya, suruklenmeye,
-    # motor sicakligina gore degisiyordu (tekrarlanabilir degil).
-    # Yeni yontem kapali cevrim:   cap = 2 * ileri_hiz / donus_hizi
-    #   D=1.2 m, v=0.25 m/s -> w = 23.9 dps, tur 15.1 s
-    #   D=1.2 m, v=0.20 m/s -> w = 19.1 dps, tur 18.8 s
-    #   D=1.5 m, v=0.25 m/s -> w = 19.1 dps, tur 18.8 s
-    # v HAVUZDA olculecek (protokol Adim 8), sonra w bu formulle secilecek.
-    circle_diameter_m   = 1.2,   # hedef cap (sartname min 1.0 m, %20 pay)
-    circle_yaw_rate_dps = 24.0,  # hedef donus hizi (derece/sn) - Adim 8 sonrasi guncelle
-    circle_throttle     = 0.25,  # daire: ileri gaz
-    circle_deg          = 370.0, # tam turdan biraz fazla (jiroskop toplami)
-    circle_yaw_rate     = 0.35,  # (ESKI - kullanilmiyor, geriye uyum icin)
+    circle_yaw_rate  = 0.35,  # daire: donus komutu (0..1)
+    circle_throttle  = 0.25,  # daire: ileri gaz -> yaricapi bu oran belirler (~>1 m cap olmali)
+    circle_deg       = 370.0, # tam turdan biraz fazla (jiroskop toplami)
     start_delay_s    = 10.0,  # baslat komutundan gorev baslangicina geri sayim
 )
 

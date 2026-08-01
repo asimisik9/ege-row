@@ -63,7 +63,12 @@ class GCSContext:
                     "pitch": round(ori.pitch, 1),
                     "roll": round(ori.roll, 1),
                     "yaw_rate": round(ori.yaw_rate, 2),
-                    "depth": round(depth.read_depth_m(), 2),
+                    # SORUN 2/8: web thread'i ARTIK SENSORU OKUMUYOR.
+                    # Eskiden buradaki read_depth_m() 40 ms I2C bloklamasi
+                    # yapiyordu — ustelik kontrol dongusune paralel olarak.
+                    # Simdi stabilizer'in onbellegindeki taze deger okunuyor.
+                    "depth": round(getattr(self.stabilizer, "depth_m",
+                                           0.0), 2),
                     "target_depth": round(self.stabilizer.target_depth or 0.0, 2),
                     "pressure_mbar": round(getattr(depth, "pressure_mbar", 1013.25), 1),
                     "temp_c": round(getattr(depth, "temp_c", 20.0), 1),

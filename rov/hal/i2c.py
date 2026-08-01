@@ -17,6 +17,7 @@ Teshis icin: python3 i2c_tara.py
 import time
 
 from config import I2C_BUS, FREQ_HZ, PCA9685_REF_CLOCK_HZ
+from hal.i2c_lock import I2C_LOCK
 
 PCA_ADDR = 0x40
 
@@ -110,12 +111,18 @@ class Pca9685:
         self.gercek_freq_hz = ref_clock_hz / (4096.0 * (prescale + 1))
 
     def set_us(self, channel, us):
-        """Kanala mikrosaniye cinsinden darbe genisligi yazar."""
+        """Kanala mikrosaniye cinsinden darbe genisligi yazar.
+
+        I2C_LOCK: motor yazimi kontrol dongusunden, sensor okumalari ayri
+        thread'lerden geliyor. Ayni veri yolunda ust uste binmemeleri icin
+        (SORUN 2 - thread mimarisi) tek ortak kilit kullaniliyor.
+        """
         sayac = int(round(us / self.period_us * 4096.0))
         sayac = max(0, min(4095, sayac))
         reg = _LED0_ON_L + 4 * channel
-        self.bus.write_i2c_block_data(self.addr, reg,
-                                      [0x00, 0x00, sayac & 0xFF, sayac >> 8])
+        with I2C_LOCK:
+            self.bus.write_i2c_block_data(self.addr, reg,
+                                          [0x00, 0x00, sayac & 0xFF, sayac >> 8])
 
 
 class _BlinkaPca9685:

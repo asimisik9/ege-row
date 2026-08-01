@@ -2,68 +2,104 @@
 Otonom video gosterimi gorevi (sartname 2.4.3.3, Ileri Kategori).
 
 Dizi (tamami su altinda, otonom):
-  DAL -> DUZ1(15sn) -> DON1(+90) -> DUZ2(15sn) -> DAIRE(360, >=1m cap)
-      -> DUZ3(15sn) -> DON2(+90) -> DUZ4(15sn) -> DUR (baslangic alaninda)
+  DAL -> DUZ1(16sn) -> DON1(+90) -> DUZ2(16sn) -> DAIRE(360, >=1.2m cap)
+      -> DUZ3(16sn) -> DON2(+90) -> DUZ4(16sn) -> DUR (baslangic alaninda)
 
-Rota kapali dikdortgen: DUZ1..DUZ4 esit sure/hiz -> araca basa dondurur.
-Daire kosede cizilir, cikista heading daire oncesinden +90 olmalidir;
-bunu jiroskop toplami (360 sayma) + son heading kilidi ile sagliyoruz.
+==============================================================================
+BU DOSYADA COZULEN SORUNLAR
+==============================================================================
+SORUN 6 — DAIRE SAYACI GURULTUYU TUR SANIYORDU
+  Eski kod:  self._circle_acc += abs(yaw_rate) * dt
+  abs() eksi isaretini atiyordu. Jiroskop hic donmeyen bir aracta bile
+  bir an +0.5 bir an -0.5 okur; normalde bunlar birbirini goturur.
+  abs() yuzunden GURULTU BIRIKIYORDU: ~0.5 dps gurultu x 40 sn = ~20 derece
+  sahte donus. Ustelik arac TERS yone sapsa bile sayac ileri gidiyordu.
+  COZUM: isaretli toplama + GYRO_NOISE_DPS altini yoksayma + duruma
+         girerken sayaci sifirlama.
+
+DAIRE CAPI ARTIK HESAPLANIYOR (plan §4.4)
+  Eski: sabit yaw KOMUTU -> cap bataryaya/suruklenmeye gore degisiyordu.
+  Yeni: sabit DONUS HIZI hedefi (kapali cevrim, cascade ic dongusu).
+        cap = 2 * ileri_hiz / donus_hizi
+  Havuzda ileri hizi bir kez olculur (Adim 8), config'teki
+  MISSION["circle_yaw_rate_dps"] ona gore secilir.
+
+SORUN 8 — AYNI SENSOR DONGUDE 3 KEZ OKUNUYORDU
+  stabilizer.compute() artik dongu basina 1 kez ornekliyor; buradaki
+  depth_error() ve logger o anlik goruntuyu kullaniyor, tekrar okuma yok.
+
+YON MODU (plan §4.2)
+  Duz segmentlerde 'cruise' (dusuk donus hizi + dusuk yetki: rotayi bozmaz),
+  yerinde donuslerde 'turn' (tam yetki). Mod degisimi durum makinesinde.
+
+GUVENLIK — YUZEYE CIKMA (kabul kriteri H4)
+  Yuzeye cikmak ELEME sebebi. Derinlik SURFACE_GUARD_M'in ustune cikarsa
+  olay loglanir ve sayac artar; prova sonrasi analiz araci bunu raporlar.
 """
 import time
 import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from config import MISSION
+from config import MISSION, GYRO_NOISE_DPS
 from control.mixer import mix
-from control.pid import angle_error_deg
+
+try:
+    from config import SURFACE_GUARD_M
+except ImportError:
+    SURFACE_GUARD_M = 0.25
 
 
 class VideoDemoMission:
     def __init__(self, stabilizer, thrusters, logger=None):
-        """stabilizer: Stabilizer (PID hesaplarini yapar). thrusters: Thrusters
-        (motor komutlarini gonderir). logger: opsiyonel MissionLogger.
-        Gorev bir durum makinesi (state machine) olarak isler; state="IDLE"
-        ile baslar, start() COUNTDOWN'a gecirir."""
+        """stabilizer: Stabilizer. thrusters: Thrusters. logger: MissionLogger.
+        Gorev bir durum makinesidir; 'IDLE' ile baslar, start() COUNTDOWN'a gecirir."""
         self.stab = stabilizer
         self.thr = thrusters
         self.log = logger
         self.state = "IDLE"
-        self._t0 = None          # durum baslangic zamani
-        self._h0 = None          # gorev baslangic heading'i
-        self._circle_acc = 0.0   # dairede biriken aci
-        self._prev_t = None
+        self._t0 = None           # durum baslangic zamani
+        self._h0 = None           # gorev baslangic heading'i (referans)
+        self._circle_acc = 0.0    # dairede biriken ISARETLI aci
+        self._circle_prev_t = None
+        self._circle_done = False # tur tamamlandi mi (sayac dondurulur)
         self._settle_t = None
+        self.surface_violations = 0   # H4: yuzeye cikma ihlali sayaci
+        self.last_axes = dict(surge=0.0, yaw=0.0, heave=0.0, roll=0.0, pitch=0.0)
 
     # ------------------------------------------------ durum yonetimi
     def start(self):
-        """Gorevi baslatir: derinlik sensorunu su yuzeyine gore sifirlar
-        ve durumu COUNTDOWN'a geciler (geri sayim sonunda DIVE baslar)."""
+        """Gorevi baslatir: derinlik referansini yuzeye gore sifirlar ve
+        COUNTDOWN'a gecer (geri sayim sonunda DIVE baslar)."""
         self.stab.depth.zero_at_surface()
         self._enter("COUNTDOWN")
 
     def abort(self):
-        """Gorevi acil durdurur: motorlari notre ceker, durumu ABORT yapar."""
+        """Acil durdurma: motorlar notr, durum ABORT."""
         self.thr.stop()
         self.state = "ABORT"
 
     def _enter(self, state):
-        """Durum makinesinde yeni bir duruma gecer: durum zamanlayicisini
-        (_t0) ve settle zamanlayicisini sifirlar, olayi loglar."""
+        """Yeni duruma gecer: zamanlayicilari sifirlar, olayi loglar."""
         self.state = state
         self._t0 = time.monotonic()
         self._settle_t = None
+        if state == "CIRCLE":
+            # SORUN 6: daireye her giriste sayaci ve saati SIFIRLA.
+            # Eski kodda _circle_acc sadece __init__'te sifirlaniyordu.
+            self._circle_acc = 0.0
+            self._circle_prev_t = None
+            self._circle_done = False
         if self.log:
             self.log.event(f"STATE -> {state}")
 
     def _elapsed(self):
-        """Mevcut duruma girildiginden bu yana gecen sure (saniye)."""
         return time.monotonic() - self._t0
 
     # ------------------------------------------------ ana dongu adimi
     def step(self):
         """Kontrol dongusunden LOOP_HZ frekansinda cagrilir.
-        Gorev bitti ise True dondurur."""
+        Gorev bittiyse True dondurur."""
         M = MISSION
         s = self.state
 
@@ -76,24 +112,29 @@ class VideoDemoMission:
                 self._enter("DIVE")
             return False
 
+        # ---- DALIS -------------------------------------------------------
         if s == "DIVE":
             self.stab.set_targets(depth_m=M["target_depth_m"])
             axes = self.stab.compute(surge=0.0)
             self._apply(axes)
+            # depth_error() sensoru TEKRAR OKUMAZ, compute()'un ornegini kullanir
             ok = abs(self.stab.depth_error()) < M["depth_tol_m"]
             if ok or self._elapsed() > M["dive_timeout_s"]:
-                self._h0 = self.stab.ori.heading  # referans heading
+                self._h0 = self.stab.heading_deg      # referans yon
                 self.stab.set_targets(heading_deg=self._h0)
+                self.stab.set_heading_mode("cruise")
+                if self.log:
+                    self.log.event(f"REFERANS HEADING h0 = {self._h0:.1f} deg")
                 self._enter("STRAIGHT1")
             return False
 
-        # ---- duz gidisler ----
-        for i, (st, next_st, hdg_off) in enumerate((
-                ("STRAIGHT1", "TURN1", 0),
-                ("STRAIGHT2", "CIRCLE", 90),
-                ("STRAIGHT3", "TURN2", 180),
-                ("STRAIGHT4", "FINISH", 270))):
+        # ---- DUZ GIDISLER -------------------------------------------------
+        for st, next_st, hdg_off in (("STRAIGHT1", "TURN1", 0),
+                                     ("STRAIGHT2", "CIRCLE", 90),
+                                     ("STRAIGHT3", "TURN2", 180),
+                                     ("STRAIGHT4", "FINISH", 270)):
             if s == st:
+                self.stab.set_heading_mode("cruise")
                 self.stab.set_targets(depth_m=M["target_depth_m"],
                                       heading_deg=self._h0 + hdg_off)
                 axes = self.stab.compute(surge=M["cruise_throttle"])
@@ -102,10 +143,11 @@ class VideoDemoMission:
                     self._enter(next_st)
                 return False
 
-        # ---- 90 derece donusler (yerinde) ----
+        # ---- 90 DERECE DONUSLER (yerinde) ---------------------------------
         for st, next_st, target_off in (("TURN1", "STRAIGHT2", 90),
                                         ("TURN2", "STRAIGHT4", 270)):
             if s == st:
+                self.stab.set_heading_mode("turn")
                 self.stab.set_targets(depth_m=M["target_depth_m"],
                                       heading_deg=self._h0 + target_off)
                 axes = self.stab.compute(surge=0.0)
@@ -113,39 +155,71 @@ class VideoDemoMission:
                 if self._turn_done(M):
                     self._enter(next_st)
                 elif self._elapsed() > M["turn_timeout_s"]:
-                    self._enter(next_st)  # takilmamak icin devam (log'a duser)
+                    if self.log:
+                        self.log.event(f"UYARI: {st} zaman asimi "
+                                       f"(hata {self.stab.heading_error():.1f} deg)")
+                    self._enter(next_st)
                 return False
 
-        # ---- daire ----
+        # ---- DAIRE --------------------------------------------------------
         if s == "CIRCLE":
             now = time.monotonic()
-            dt = 0.0 if self._prev_t is None else now - self._prev_t
-            self._prev_t = now
-            self._circle_acc += abs(self.stab.ori.yaw_rate) * dt
+            dt = 0.0 if self._circle_prev_t is None else (now - self._circle_prev_t)
+            self._circle_prev_t = now
 
-            if self._circle_acc < M["circle_deg"]:
-                # sabit donus + ileri: heading PID devre disi (yaw_override)
+            w = self.stab.snap.yaw_rate if self.stab.snap else 0.0
+            # SORUN 6: ISARETLI toplama + gurultu esigi.
+            # abs() KULLANMA — gurultuyu tur sayar. Esik altini da sayma.
+            if not self._circle_done and abs(w) > GYRO_NOISE_DPS:
+                self._circle_acc += w * dt
+                if abs(self._circle_acc) >= M["circle_deg"]:
+                    # Tur tamam. Sayaci DONDUR: bundan sonraki donus artik
+                    # "daire" degil, h0+180'e kilitlenme donusudur. Sayaci
+                    # dondurmezsek log 530 derece gosterir ve H8 kriteri
+                    # (360 +- 10) anlamsiz olur.
+                    self._circle_done = True
+                    if self.log:
+                        self.log.event(f"DAIRE 360 tamamlandi: "
+                                       f"{self._circle_acc:.1f} deg")
+
+            if not self._circle_done:
+                # Daire kendi yetki moduna gecer: ic dongu DOYMAMALI,
+                # yoksa cap hedefledigimiz degil ulasilabilen deger olur.
+                self.stab.set_heading_mode("circle")
+                # Sabit DONUS HIZI hedefi + sabit ileri gaz.
+                # cap = 2 * ileri_hiz / donus_hizi  (kapali cevrim -> tekrarlanabilir)
                 self.stab.set_targets(depth_m=M["target_depth_m"])
-                axes = self.stab.compute(surge=M["circle_throttle"],
-                                         yaw_override=M["circle_yaw_rate"])
+                axes = self.stab.compute(
+                    surge=M["circle_throttle"],
+                    yaw_rate_target=M["circle_yaw_rate_dps"])
                 self._apply(axes)
             else:
-                # tur tamam: daire cikis heading'ine kilitlen (h0+180)
+                # Tur tamam: cikis heading'ine kilitlen (h0 + 180).
+                self.stab.set_heading_mode("turn")
                 self.stab.set_targets(depth_m=M["target_depth_m"],
                                       heading_deg=self._h0 + 180)
                 axes = self.stab.compute(surge=0.0)
                 self._apply(axes)
-                if self._turn_done(M):
-                    self._prev_t = None
+                if self._turn_done(M) or self._elapsed() > (
+                        M["turn_timeout_s"] + 60.0):
+                    if self.log:
+                        self.log.event(f"DAIRE tamam: toplam donus "
+                                       f"{self._circle_acc:.1f} deg")
+                    self._circle_prev_t = None
                     self._enter("STRAIGHT3")
             return False
 
+        # ---- BITIS --------------------------------------------------------
         if s == "FINISH":
-            # motorlari notre cek, su altinda bekle (yuzeye cikmak yasak)
-            self.thr.command(mix(0, 0, 0))
-            axes = self.stab.compute(surge=0.0)  # derinligi tutmaya devam
+            # Ileri gaz yok; derinlik ve yon tutulmaya devam eder.
+            # (Yuzeye cikmak yasak — su altinda duruyoruz.)
+            self.stab.set_heading_mode("turn")
+            self.stab.set_targets(depth_m=M["target_depth_m"],
+                                  heading_deg=self._h0 + 270)
+            axes = self.stab.compute(surge=0.0)
             self._apply(axes)
             if self._elapsed() > 3.0:
+                self.thr.command(mix(0.0, 0.0, 0.0))
                 self._enter("DONE")
             return False
 
@@ -153,15 +227,24 @@ class VideoDemoMission:
 
     # ------------------------------------------------ yardimcilar
     def _apply(self, axes):
-        """Stabilizer'dan gelen eksen komutlarini (surge/yaw/heave/roll/pitch)
-        mixer ile motor komutlarina cevirip gonderir ve varsa loga bir
-        veri satiri yazar."""
+        """Eksen komutlarini mixer ile motor komutlarina cevirip gonderir,
+        loga bir veri satiri yazar ve yuzeye cikma ihlalini kontrol eder."""
+        self.last_axes = axes
         self.thr.command(mix(**axes))
+
+        # H4 kabul kriteri: yuzeye cikmak ELEME sebebi.
+        if self.state not in ("IDLE", "COUNTDOWN", "DIVE") and \
+                self.stab.depth_m < SURFACE_GUARD_M:
+            self.surface_violations += 1
+            if self.log and self.surface_violations % 20 == 1:
+                self.log.event(f"!!! YUZEY IHLALI: derinlik "
+                               f"{self.stab.depth_m:.2f} m < {SURFACE_GUARD_M} m")
+
         if self.log:
-            self.log.sample(self.state, self.stab, axes)
+            self.log.sample(self.state, self.stab, axes, self.thr)
 
     def _turn_done(self, M):
-        """Heading hedefe geldi ve settle suresi kadar orada kaldi mi?"""
+        """Yon hedefe geldi ve settle suresi kadar orada kaldi mi?"""
         if abs(self.stab.heading_error()) < M["turn_tol_deg"]:
             if self._settle_t is None:
                 self._settle_t = time.monotonic()

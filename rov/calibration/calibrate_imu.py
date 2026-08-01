@@ -57,9 +57,22 @@ def calibrate_gyro(imu, duration_s=5.0):
     if max_std > 1.5:
         print(f"[UYARI] Ölçüm sırasında belirgin hareket algılandı (Standart Sapma: {max_std:.2f} dps)! "
               "Aracı tamamen sabit tutup tekrar çalıştırın.")
-    if max(abs(b) for b in bias) > 15.0:
-        print("[UYARI] Bias çok büyük (>15 dps) - sensör arızalı olabilir "
-              "veya ölçüm sırasında araç döndürüldü.")
+    # SORUN 1 (ikinci kisim): config'te GYRO_BIAS gx = 5.677 dps yaziyordu.
+    # MPU-9250 tipik fabrika sapmasi +-5 dps civari; 5.677 sinirda ve
+    # muhtemelen olcum sirasinda arac hareket ettigi icin bu kadar cikmis.
+    # Jiroskop sapmasi heading'i DOGRUDAN suruklendirir (aciyi toplayarak
+    # buluyoruz), o yuzden burada sert davraniyoruz.
+    if max_std > 1.5:
+        print("[HATA] Olcum sirasinda arac hareket ediyordu — sonuc gecersiz.")
+        return None
+    if max(abs(b) for b in bias) > 10.0:
+        print("[HATA] Bias cok buyuk (>10 dps) — sensor arizali olabilir "
+              "veya olcum sirasinda arac donduruldu. Sonuc gecersiz.")
+        return None
+    if max(abs(b) for b in bias) > 5.0:
+        print("[UYARI] Bias yuksek (>5 dps). Kabul edilebilir ama tekrar "
+              "olcmeni oneririm — heading suruklenmesini bu belirler.")
+    print("[OK] Jiroskop kalibrasyonu makul aralikta.")
     return bias
 
 
@@ -79,6 +92,51 @@ def calibrate_accel(imu, duration_s=5.0):
     # Z ekseninden yerçekimini çıkar (1g varsayarak)
     bias = (round(_avg(xs), 3), round(_avg(ys), 3), round(_avg(zs) - 1.0, 3))
     print(f"ACCEL_BIAS olculen deger: {bias}")
+
+    # ==================================================================
+    # SORUN 1'IN KOK NEDENI BURADAYDI — ARTIK ENGELLENIYOR
+    # ==================================================================
+    # config.py'de ACCEL_BIAS = (2.0, -2.0, -0.296) yaziyordu.
+    # MPU-9250 varsayilan +-2g araliginda calisiyor (16384 LSB/g), yani
+    # 2.0 g'lik bir "sapma" SENSORUN TUM OLCUM ARALIGI kadar. Bu fiziksel
+    # olarak bir bias degeri OLAMAZ; olcum doyuma girmisken (arac
+    # sallanirken) kalibre edilmis demektir.
+    #
+    # SONUCU (gercek log ile dogrulandi): arac dumduz dururken program
+    # roll = -57.06 derece saniyordu. Ustelik pusula hesabi egim telafisi
+    # icin roll/pitch kullandigi icin HEADING DE bozuluyordu.
+    # 10 saniyede 154 -> 98 derece kayma bu yuzdendi.
+    #
+    # Artik bozuk deger config.py'ye YAZILAMIYOR.
+    import statistics
+    hareket = max(statistics.pstdev(xs), statistics.pstdev(ys), statistics.pstdev(zs))
+    en_buyuk = max(abs(b) for b in bias)
+    norm = (_avg(xs) ** 2 + _avg(ys) ** 2 + _avg(zs) ** 2) ** 0.5
+
+    sorunlar = []
+    if en_buyuk > 0.3:
+        sorunlar.append(
+            f"ACCEL_BIAS cok buyuk ({en_buyuk:.2f} g > 0.3 g). Ivmeolcer +-2g\n"
+            "     araliginda; bu buyuklukte bir sapma fiziksel olarak olamaz.")
+    if hareket > 0.05:
+        sorunlar.append(
+            f"Olcum sirasinda HAREKET algilandi (std {hareket:.3f} g > 0.05 g).")
+    if not (0.85 < norm < 1.15):
+        sorunlar.append(
+            f"Toplam ivme buyuklugu {norm:.2f} g — 1.0 g olmaliydi.\n"
+            "     Arac duz durmuyor ya da sensor doyuma girmis.")
+
+    if sorunlar:
+        print("\n" + "!" * 72)
+        print("[HATA] IVMEOLCER KALIBRASYONU GECERSIZ:")
+        for x in sorunlar:
+            print("  -> " + x)
+        print("\n  YAP: Araci DUZ bir zemine koy, hicbir sey dokunmasin,")
+        print("       titresim olmasin, sonra tekrar calistir.")
+        print("  (Bozuk deger config.py'ye YAZILMAYACAK.)")
+        print("!" * 72 + "\n")
+        return None
+    print("[OK] Ivmeolcer kalibrasyonu fiziksel sinirlar icinde.")
     return bias
 
 
@@ -167,6 +225,14 @@ def main():
 
     gyro_bias = calibrate_gyro(imu)
     accel_bias = calibrate_accel(imu)
+
+    # SORUN 1: gecersiz olcum config.py'ye ASLA yazilmaz.
+    if gyro_bias is None or accel_bias is None:
+        print("\n" + "=" * 72)
+        print("KALIBRASYON BASARISIZ — config.py DEGISTIRILMEDI.")
+        print("Araci duz, sabit bir zemine koyup tekrar calistir.")
+        print("=" * 72)
+        return
 
     input("\n2) Simdi araci elinle cevirmeye hazirlan. "
           "Hazir olunca ENTER'a bas, sonra hemen cevirmeye basla...")

@@ -1,3 +1,14 @@
+"""
+!!! BU SCRIPT ARTIK KULLANILMIYOR — YERINE:  python3 pid_tune.py  !!!
+
+Sebep:
+Role/Ziegler-Nichols yontemi MOTOR_DIRECTION dogrulanmadan ve dongu
+7.3 Hz'de iken anlamsiz Ku/Tu uretir. Ayrica yeni kaskad yon kontrolu
+ile uyumlu degil.
+
+Dosya sadece referans icin duruyor. Havuzda pid_tune.py kullan.
+"""
+
 #!/usr/bin/env python3
 """
 EGE ROV — Otomatik PID Kalibrasyonu (Åström-Hägglund Röle Yöntemi).
