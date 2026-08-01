@@ -120,9 +120,14 @@ class Pca9685:
         sayac = int(round(us / self.period_us * 4096.0))
         sayac = max(0, min(4095, sayac))
         reg = _LED0_ON_L + 4 * channel
-        with I2C_LOCK:
-            self.bus.write_i2c_block_data(self.addr, reg,
-                                          [0x00, 0x00, sayac & 0xFF, sayac >> 8])
+        try:
+            with I2C_LOCK:
+                self.bus.write_i2c_block_data(self.addr, reg,
+                                              [0x00, 0x00, sayac & 0xFF, sayac >> 8])
+        except OSError:
+            # Motor anlik yuklenmesinde olusan elektriksel gurultu I2C'yi saniyede 1-2 kez dusurebilir (Errno 121 / 110).
+            # 50Hz'de gonderdigimiz icin 1 paketin kaybolmasi sorun degil. Gormezden gel.
+            pass
 
 
 class _BlinkaPca9685:

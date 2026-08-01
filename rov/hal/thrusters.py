@@ -68,6 +68,7 @@ class Thrusters:
         self.backend = backend
         self.armed = False
         self._current = {name: 0.0 for name in MOTOR_CHANNELS}  # slew icin
+        self._last_us = {name: None for name in MOTOR_CHANNELS} # redundant I2C onleme
         self._last_t = time.monotonic()
         self.stop()
 
@@ -117,4 +118,13 @@ class Thrusters:
         return int(max(ESC_ABS_MIN_US, min(ESC_ABS_MAX_US, us)))
 
     def _write_us(self, name, us):
+        """Motor ismine gore kanali bulur ve surucuye iletir."""
+        if name not in MOTOR_CHANNELS:
+            return
+        
+        us = max(PWM_MIN_US, min(PWM_MAX_US, us))
+        if self._last_us.get(name) == us:
+            return  # deger degismediyse I2C'yi mesgul etme (gurultu/veri yolu yuku azaltimi)
+            
+        self._last_us[name] = us
         self.backend.set_us(MOTOR_CHANNELS[name], us)
