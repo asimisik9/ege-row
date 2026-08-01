@@ -27,17 +27,15 @@ VERTICAL = ("V_FL", "V_FR", "V_RL", "V_RR")   # dikey motorlar (config yerlesimi
 # ------------------------------------------------------------ PCA9685 (motor PWM)
 class Pwm:
     def __init__(self):
-        import board, busio
-        from adafruit_pca9685 import PCA9685
-        i2c = busio.I2C(board.SCL, board.SDA)
-        self.dev = PCA9685(i2c, address=0x40,
-                           reference_clock_speed=PCA9685_REF_CLOCK_HZ)
-        self.dev.frequency = 50
-        self.period_us = 1_000_000 / 50.0
+        # Blinka (board/busio) yanlis busu secebiliyor; basinc sensoru smbus2
+        # ile bus 8'e baglanirken motorlar baglanamiyordu. Artik ayni yol:
+        # hal/i2c.py bus NUMARASI ile baglanir (config.I2C_BUS -> 8).
+        from hal.i2c import pca9685_ac
+        self.dev = pca9685_ac(freq_hz=50)
 
     def set_us(self, channel, us):
         us = max(PWM_MIN_US, min(PWM_MAX_US, us))
-        self.dev.channels[channel].duty_cycle = int(us / self.period_us * 0xFFFF)
+        self.dev.set_us(channel, us)
 
     def motor(self, name, cmd):
         """cmd: -1..+1 (+1 = o motorun ILERI yonu, MOTOR_DIRECTION uygulanir)."""

@@ -9,7 +9,7 @@ Guvenlik: arm edilmeden komut gonderilmez; stop() her kosulda notre ceker.
 """
 import time
 from config import (MOTOR_CHANNELS, PWM_NEUTRAL_US, PWM_MIN_US, PWM_MAX_US,
-                    PWM_DEADBAND_US, SLEW_RATE, PCA9685_REF_CLOCK_HZ,
+                    PWM_DEADBAND_US, SLEW_RATE, FREQ_HZ,
                     ESC_ABS_MIN_US, ESC_ABS_MAX_US)
 
 # config.py'de yanlis bir PWM_RANGE_US yazilirsa (orn. notrden sapma yerine
@@ -39,25 +39,25 @@ class MockBackend:
 
 
 class PCA9685Backend:
-    """Adafruit PCA9685 (I2C). Kurulum (Jetson):
-        pip3 install adafruit-circuitpython-pca9685 adafruit-blinka
-    I2C baglantisi: PCA9685 -> Jetson pin 3 (SDA), pin 5 (SCL), 3.3V, GND
+    """PCA9685 PWM karti (I2C). Kurulum (Jetson): pip3 install smbus2
+
+    I2C baglantisi: PCA9685 -> Jetson pin 3 (SDA), pin 5 (SCL), pin 6 (GND)
+                    + VCC pin 1 (3.3V) ya da pin 2 (5V)  <- lojik besleme SART
+
+    Baglanti hal/i2c.py uzerinden BUS NUMARASI ile kurulur; board.SCL/board.SDA
+    (Blinka) yanlis busu sectigi icin "pin yok / cihaz yok" hatasi veriyordu.
+    Teshis: python3 i2c_tara.py
     """
-    def __init__(self, freq_hz=50, address=0x40):
-        """I2C uzerinden PCA9685 karti ile baglanti kurar ve PWM frekansini
-        (standart ESC icin 50Hz) ayarlar."""
-        import board, busio
-        from adafruit_pca9685 import PCA9685
-        i2c = busio.I2C(board.SCL, board.SDA)
-        self.dev = PCA9685(i2c, address=address, reference_clock_speed=PCA9685_REF_CLOCK_HZ)
-        self.dev.frequency = freq_hz
-        self.period_us = 1_000_000 / freq_hz
+    def __init__(self, freq_hz=FREQ_HZ, address=0x40, bus_num=None):
+        """PCA9685 karti ile baglanti kurar ve PWM frekansini (standart ESC
+        icin 50Hz) ayarlar. bus_num verilmezse config.I2C_BUS'tan baslayarak
+        tum olasi I2C buslari denenir."""
+        from hal.i2c import pca9685_ac
+        self.dev = pca9685_ac(bus_num=bus_num, address=address, freq_hz=freq_hz)
 
     def set_us(self, channel, us):
-        """Mikrosaniye cinsinden PWM darbe genisligini PCA9685'in 16-bit
-        duty-cycle degerine cevirip ilgili kanala yazar."""
-        duty = int(us / self.period_us * 0xFFFF)
-        self.dev.channels[channel].duty_cycle = duty
+        """Mikrosaniye cinsinden PWM darbe genisligini ilgili kanala yazar."""
+        self.dev.set_us(channel, us)
 
 
 # ------------------------------------------------------------ ana sinif

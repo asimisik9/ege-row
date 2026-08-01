@@ -15,28 +15,24 @@ KULLANIM (Jetson uzerinde, PERVANELER TAKILI DEGILKEN):
 import sys
 import time
 import config
-from config import (MOTOR_CHANNELS, PCA9685_REF_CLOCK_HZ,
+from config import (MOTOR_CHANNELS, PCA9685_REF_CLOCK_HZ, FREQ_HZ,
                     PWM_NEUTRAL_US, PWM_MIN_US, PWM_MAX_US)
 
 
 def get_pca9685():
+    """PCA9685'e baglanir (bus numarasi ile — bkz. hal/i2c.py)."""
     try:
-        import board, busio
-        from adafruit_pca9685 import PCA9685
-        i2c = busio.I2C(board.SCL, board.SDA)
-        dev = PCA9685(i2c, address=0x40, reference_clock_speed=PCA9685_REF_CLOCK_HZ)
-        dev.frequency = 50
-        return dev
+        from hal.i2c import pca9685_ac
+        return pca9685_ac(freq_hz=FREQ_HZ)
     except Exception as e:
-        print(f"[HATA] PCA9685 baglanamadi: {e}")
+        print(f"\n[HATA] PCA9685 baglanamadi:\n{e}")
+        print("\n  Teshis icin: python3 i2c_tara.py")
         sys.exit(1)
 
 
 def set_all_us(dev, us_val):
-    period_us = 1_000_000 / 50.0
-    duty = int(us_val / period_us * 0xFFFF)
     for ch in MOTOR_CHANNELS.values():
-        dev.channels[ch].duty_cycle = duty
+        dev.set_us(ch, us_val)
 
 
 def calibrate_escs():

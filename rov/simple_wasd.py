@@ -22,23 +22,20 @@ import sys
 import time
 import select
 
-# PCA9685 Donanım Bağlantısı
+# PCA9685 Donanım Bağlantısı (bus numarası ile — bkz. hal/i2c.py)
 try:
-    import board
-    import busio
-    from adafruit_pca9685 import PCA9685
+    from hal.i2c import pca9685_ac
     _HW_OK = True
 except ImportError:
     _HW_OK = False
     print("[UYARI] PCA9685 kütüphanesi bulunamadı! Simülasyon modunda çalışıyor.")
 
 from config import (PWM_NEUTRAL_US, PWM_RANGE_US, PWM_MIN_US, PWM_MAX_US, FREQ_HZ,
-                    PCA9685_REF_CLOCK_HZ, MOTOR_CHANNELS, MOTOR_DIRECTION)
+                    MOTOR_CHANNELS, MOTOR_DIRECTION)
 
 NEUTRAL_US = PWM_NEUTRAL_US
 MAX_SPAN_US = PWM_RANGE_US
 CHANNELS = MOTOR_CHANNELS
-PERIOD_US = 1_000_000 / FREQ_HZ
 
 
 class ThrusterDriver:
@@ -46,12 +43,10 @@ class ThrusterDriver:
         self.dev = None
         if _HW_OK:
             try:
-                i2c = busio.I2C(board.SCL, board.SDA)
-                self.dev = PCA9685(i2c, address=0x40, reference_clock_speed=PCA9685_REF_CLOCK_HZ)
-                self.dev.frequency = FREQ_HZ
-                print(f"[OK] PCA9685 bağlandı (0x40, {FREQ_HZ}Hz).")
+                self.dev = pca9685_ac(freq_hz=FREQ_HZ)
             except Exception as e:
-                print(f"[HATA] PCA9685 bağlanamadı: {e}")
+                print(f"[HATA] PCA9685 bağlanamadı:\n{e}")
+                print("\n  Teşhis için: python3 i2c_tara.py")
                 self.dev = None
 
         self.stop_all()
@@ -60,8 +55,7 @@ class ThrusterDriver:
         """Mikrosaniye (us) değerini PCA9685 kanallarına yazar."""
         us_val = int(max(PWM_MIN_US, min(PWM_MAX_US, us_val)))
         if self.dev:
-            duty = int(us_val / PERIOD_US * 0xFFFF)
-            self.dev.channels[ch].duty_cycle = duty
+            self.dev.set_us(ch, us_val)
 
     def stop_all(self):
         """Tüm kanalları nötr sinyaline çeker."""

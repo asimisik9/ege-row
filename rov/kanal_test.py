@@ -13,13 +13,11 @@ Prosedur:
 
 Guvenlik: pervanesiz test et!
 """
+import sys
 import time
-from config import (PWM_NEUTRAL_US, PWM_MIN_US, PWM_MAX_US,
-                    PCA9685_REF_CLOCK_HZ, FREQ_HZ)
+from config import PWM_NEUTRAL_US, FREQ_HZ
 
-import board
-import busio
-from adafruit_pca9685 import PCA9685
+from hal.i2c import pca9685_ac
 
 
 NEUTRAL_US = PWM_NEUTRAL_US
@@ -27,18 +25,20 @@ FWD_US = PWM_NEUTRAL_US + 150
 REV_US = PWM_NEUTRAL_US - 150
 SPIN_S = 2.0
 
-i2c = busio.I2C(board.SCL, board.SDA)
-# reference_clock_speed sart: verilmezse kart 58.1Hz'de calisir ve tum darbeler
-# %14 kisalir (1500us -> 1291us), yani her motor her testte geri doner.
-p = PCA9685(i2c, address=0x40, reference_clock_speed=PCA9685_REF_CLOCK_HZ)
-p.frequency = FREQ_HZ
-
-PERIOD_US = 1_000_000 / FREQ_HZ
+# Baglanti bus NUMARASI ile kurulur (board.SCL/SDA yanlis busu seciyordu).
+# PCA9685_REF_CLOCK_HZ sart: olculmemis 25MHz ile kart 58.1Hz'de calisir ve tum
+# darbeler %14 kisalir (1500us -> 1291us), yani her motor her testte geri doner.
+try:
+    p = pca9685_ac(freq_hz=FREQ_HZ)
+except Exception as e:
+    print(f"\n[HATA] PCA9685 baglanamadi:\n{e}")
+    print("\n  Teshis icin: python3 i2c_tara.py")
+    sys.exit(1)
 
 
 def us(ch, u):
-    """Mikrosaniye -> 16-bit duty cycle."""
-    p.channels[ch].duty_cycle = int(u / PERIOD_US * 0xFFFF)
+    """Kanala mikrosaniye cinsinden darbe genisligi yaz."""
+    p.set_us(ch, u)
 
 
 raw = input("Kanal numaralari (virgullu, orn 0,1,2): ")
