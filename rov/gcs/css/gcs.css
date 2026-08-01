@@ -423,6 +423,148 @@ body {
   font-family: monospace;
 }
 
+.input-row label { color: var(--text-muted); min-width: 34px; }
+.input-row input.dirty {
+  border-color: var(--accent-yellow);
+  color: var(--accent-yellow);
+}
+
+/* ── PID Canlı İzleme ──────────────────────────────────────────────────── */
+.pid-section .card-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pid-sync {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: rgba(0, 255, 102, 0.15);
+  border: 1px solid var(--accent-green);
+  color: var(--accent-green);
+}
+.pid-sync.dirty {
+  background: rgba(255, 204, 0, 0.15);
+  border-color: var(--accent-yellow);
+  color: var(--accent-yellow);
+}
+.pid-sync.offline {
+  background: rgba(255, 0, 85, 0.15);
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+}
+
+.pid-chart-wrap { position: relative; }
+
+#pid-chart {
+  width: 100%;
+  height: 110px;
+  display: block;
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+}
+
+.chart-legend {
+  position: absolute;
+  top: 4px; right: 6px;
+  display: flex;
+  gap: 8px;
+  font-size: 0.6rem;
+  font-family: monospace;
+  pointer-events: none;
+}
+
+.lg-err { color: var(--accent-yellow); }
+.lg-out { color: var(--accent-cyan); }
+.lg-sat {
+  color: var(--accent-red);
+  font-weight: 700;
+  visibility: hidden;
+}
+.lg-sat.on { visibility: visible; }
+
+/* P / I / D katkı çubukları — orta çizgi 0, sağ pozitif, sol negatif */
+.pid-terms { display: flex; flex-direction: column; gap: 3px; }
+
+.term {
+  display: grid;
+  grid-template-columns: 14px 1fr 48px;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.65rem;
+  font-family: monospace;
+}
+
+.term .tn { color: var(--text-muted); font-weight: 700; }
+.term .tv { text-align: right; color: var(--text-main); }
+
+.term .tbar {
+  position: relative;
+  height: 9px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.term .tbar::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0; bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.term .tbar i {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 0%;
+  transition: width 0.08s linear;
+}
+
+.term .tbar i.pos { left: 50%; background: var(--accent-cyan); }
+.term .tbar i.neg { right: 50%; background: var(--accent-red); }
+
+#term-out .tbar i.pos { background: var(--accent-green); }
+#term-out .tv { color: #fff; font-weight: 700; }
+.term.saturated .tbar { box-shadow: inset 0 0 0 1px var(--accent-red); }
+
+.pid-readout {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 0.62rem;
+  font-family: monospace;
+  color: var(--text-muted);
+}
+.pid-readout b { color: var(--accent-cyan); }
+
+.pid-step-test {
+  display: grid;
+  grid-template-columns: 34px 1fr 1.4fr;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+}
+
+.pid-step-test label { color: var(--text-muted); }
+
+.pid-step-test input {
+  background: #0d1321;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--accent-cyan);
+  padding: 5px;
+  border-radius: 4px;
+  font-family: monospace;
+  width: 100%;
+}
+
+.pid-step-test .btn-sec { text-align: center; padding: 6px 8px; }
+
 /* Console Section */
 .console-section { flex: 1; min-height: 120px; }
 

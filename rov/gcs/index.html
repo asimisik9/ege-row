@@ -169,31 +169,83 @@
       </div>
 
       <!-- PID Tuner Card -->
-      <div class="card-section">
-        <div class="card-title">CANLI PID KAZANÇ AYARLAYICI</div>
+      <div class="card-section pid-section">
+        <div class="card-title">CANLI PID AYAR & İZLEME
+          <span class="pid-sync" id="pid-sync">senkron</span>
+        </div>
+
         <div class="pid-selector">
           <select id="sel-pid-target">
             <option value="depth">DERİNLİK (Depth PID)</option>
-            <option value="heading">HEADING (Pusula PID)</option>
+            <option value="heading">HEADING (Pusula — kaskad)</option>
             <option value="roll">ROLL (Yatış PID)</option>
             <option value="pitch">PITCH (Yunuslama PID)</option>
           </select>
         </div>
-        <div class="pid-inputs">
-          <div class="input-row">
-            <label>Kp:</label>
-            <input type="number" id="pid-kp" step="0.001" value="2.0">
-          </div>
-          <div class="input-row">
-            <label>Ki:</label>
-            <input type="number" id="pid-ki" step="0.001" value="0.1">
-          </div>
-          <div class="input-row">
-            <label>Kd:</label>
-            <input type="number" id="pid-kd" step="0.001" value="0.8">
+
+        <!-- Canlı hata / çıkış grafiği -->
+        <div class="pid-chart-wrap">
+          <canvas id="pid-chart" width="300" height="110"></canvas>
+          <div class="chart-legend">
+            <span class="lg lg-err">— hata</span>
+            <span class="lg lg-out">— çıkış</span>
+            <span class="lg lg-sat" id="lg-sat">DOYGUN</span>
           </div>
         </div>
-        <button class="btn btn-act" id="btn-update-pid">PID KAZANÇLARINI GÜNCELLE</button>
+
+        <!-- P / I / D terim katkı çubukları -->
+        <div class="pid-terms">
+          <div class="term" id="term-p"><span class="tn">P</span>
+            <div class="tbar"><i class="pos"></i><i class="neg"></i></div>
+            <span class="tv">0.000</span></div>
+          <div class="term" id="term-i"><span class="tn">I</span>
+            <div class="tbar"><i class="pos"></i><i class="neg"></i></div>
+            <span class="tv">0.000</span></div>
+          <div class="term" id="term-d"><span class="tn">D</span>
+            <div class="tbar"><i class="pos"></i><i class="neg"></i></div>
+            <span class="tv">0.000</span></div>
+          <div class="term" id="term-out"><span class="tn">Σ</span>
+            <div class="tbar"><i class="pos"></i><i class="neg"></i></div>
+            <span class="tv">0.000</span></div>
+        </div>
+
+        <div class="pid-readout">
+          <span>Hata: <b id="pid-err">0.000</b></span>
+          <span>Çıkış: <b id="pid-out">0.000</b></span>
+          <span id="pid-extra"></span>
+        </div>
+
+        <!-- Kazanç girişleri (açılışta cihazdan okunur) -->
+        <div class="pid-inputs">
+          <div class="input-row"><label>Kp</label>
+            <input type="number" id="pid-kp" step="0.001"></div>
+          <div class="input-row"><label>Ki</label>
+            <input type="number" id="pid-ki" step="0.001"></div>
+          <div class="input-row"><label>Kd</label>
+            <input type="number" id="pid-kd" step="0.001"></div>
+        </div>
+
+        <!-- Kaskad heading için dış katman (sadece heading seçiliyken görünür) -->
+        <div class="pid-inputs cascade-only" id="pid-cascade-row" style="display:none;">
+          <div class="input-row"><label title="Dış katman: açı → dönüş hızı">Kp_pos</label>
+            <input type="number" id="pid-kp-pos" step="0.01"></div>
+          <div class="input-row"><label title="Maks. dönüş hızı (°/s)">w_max</label>
+            <input type="number" id="pid-wmax" step="0.5"></div>
+          <div class="input-row"><label title="I birikim sınırı">i_lim</label>
+            <input type="number" id="pid-ilimit" step="0.01"></div>
+        </div>
+
+        <div class="btn-group-horizontal">
+          <button class="btn btn-act" id="btn-update-pid">GÜNCELLE</button>
+          <button class="btn btn-sub" id="btn-reset-pid">I SIFIRLA</button>
+        </div>
+
+        <!-- Basamak cevabı testi -->
+        <div class="pid-step-test">
+          <label>Hedef</label>
+          <input type="number" id="pid-setpoint" step="0.1" value="1.5">
+          <button class="btn btn-sec" id="btn-set-target">HEDEF UYGULA</button>
+        </div>
       </div>
 
       <!-- Rolling Log Console Widget -->
