@@ -33,10 +33,16 @@ except ImportError:
     ACCEL_BIAS = (0.0, 0.0, 0.0)
 
 try:
-<<<<<<< Updated upstream
     from config import ROLL_PITCH_FILTER_ALPHA
 except ImportError:
     ROLL_PITCH_FILTER_ALPHA = 0.98
+
+try:
+    from config import MOUNT_PITCH_DEG, MOUNT_ROLL_DEG
+except ImportError:
+    # calibrate_imu.py henuz calistirilmadiysa 0 kullan (kalibrasyonsuz calisir)
+    MOUNT_PITCH_DEG = 0.0
+    MOUNT_ROLL_DEG  = 0.0
 
 # Manyetometre gecerlilik araligi (mikroTesla). Dunya alani ~25-65 uT.
 MAG_MIN_UT = 5.0
@@ -69,13 +75,6 @@ def _bias_sagligi_uyar():
 
 
 _bias_sagligi_uyar()
-=======
-    from config import MOUNT_PITCH_DEG, MOUNT_ROLL_DEG
-except ImportError:
-    # calibrate_imu.py henuz calistirilmadiysa 0 kullan (kalibrasyonsuz calisir)
-    MOUNT_PITCH_DEG = 0.0
-    MOUNT_ROLL_DEG  = 0.0
->>>>>>> Stashed changes
 
 
 class Mpu9250:
@@ -278,19 +277,14 @@ class Orientation:
         return (math.degrees(math.atan2(-yh, xh)) + 360.0) % 360.0
 
     def update(self):
-<<<<<<< Updated upstream
-        """Sensorleri bir kez okuyup durumu gunceller ve heading dondurur.
-        SensorHub tarafindan ~100 Hz cagrilir."""
-=======
         """Sensorleri bir kez okuyup heading/roll/pitch/yaw_rate degerlerini
         tamamlayici filtre (complementary filter) ile gunceller ve guncel
-        heading degerini dondurur. LOOP_HZ frekansinda cagrilmasi beklenir.
+        heading degerini dondurur. SensorHub tarafindan ~100 Hz cagrilir.
 
         MOUNT_PITCH_DEG / MOUNT_ROLL_DEG: IMU'nun fiziksel montaj acisi.
         calibrate_imu.py bu degerleri ROV'un dogal durusunda olcup config'e
         yazar. Burada cikartilinarak ROV'un dogal durusu her zaman
         roll=0 pitch=0 olarak tanimlanir. IMU acisindan bagimsiz calisir."""
->>>>>>> Stashed changes
         now = time.monotonic()
         dt = 0.0 if self._prev_t is None else max(1e-4, now - self._prev_t)
         self._prev_t = now
@@ -302,18 +296,11 @@ class Orientation:
         self.gyro = (gx, gy, gz)
 
         # roll/pitch: ivmeolcer referans + jiroskop kisa vade
-<<<<<<< Updated upstream
-        acc_roll = math.degrees(math.atan2(ay, az))
-        acc_pitch = math.degrees(math.atan2(-ax, math.hypot(ay, az)))
-        a = ROLL_PITCH_FILTER_ALPHA
-        self.roll = a * (self.roll + gx * dt) + (1 - a) * acc_roll
-=======
         # MOUNT_*_DEG: IMU montaj acisindan kaynaklanan ofset cikarilir
         acc_roll  = math.degrees(math.atan2(ay, az))             - MOUNT_ROLL_DEG
         acc_pitch = math.degrees(math.atan2(-ax, math.hypot(ay, az))) - MOUNT_PITCH_DEG
-        a = 0.98
+        a = ROLL_PITCH_FILTER_ALPHA
         self.roll  = a * (self.roll  + gx * dt) + (1 - a) * acc_roll
->>>>>>> Stashed changes
         self.pitch = a * (self.pitch + gy * dt) + (1 - a) * acc_pitch
 
         # heading: jiroskop entegrasyonu + manyetometre duzeltmesi
