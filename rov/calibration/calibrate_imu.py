@@ -232,10 +232,8 @@ def write_config(gyro_bias, accel_bias, mag_offset, mag_scale,
         if re.search(pattern, text, re.MULTILINE):
             return re.sub(pattern, line, text, flags=re.MULTILINE, count=1)
         else:
-            # Yoksa ACCEL_BIAS satırının hemen altına ekle (bulunamazsa sona)
-            if "ACCEL_BIAS" in text:
-                return text.replace("ACCEL_BIAS", f"ACCEL_BIAS\n{line}\n", 1)
-            return text + f"\n{line}\n"
+            # Yoksa dosyanin sonuna ekle
+            return text.rstrip() + f"\n{line}\n"
 
     c = "calibrate_imu.py ile ölçüldü"
     text = _set(text, "GYRO_BIAS      ", str(gyro_bias),    c)
