@@ -72,8 +72,8 @@ def get_hardware_or_sim():
         return thr, ori, depth
     else:
         from hal.thrusters import Thrusters, PCA9685Backend, MockBackend
-        from sensors.imu import Mpu9250, MockImu, Orientation
-        from sensors.depth import Ms5837, MockDepth
+        from sensors.imu import Mpu9250, MockImuStatic, Orientation
+        from sensors.depth import Ms5837, MockDepthStatic
 
         try:
             backend = PCA9685Backend()
@@ -87,23 +87,27 @@ def get_hardware_or_sim():
             imu_sensor = Mpu9250()
             print("[OK] MPU-9250 IMU bağlandı.")
         except Exception as e:
-            print(f"[UYARI] MPU-9250 bağlanamadı ({e}), MockIMU kullanılıyor.")
-            imu_sensor = MockImu()
+            print(f"[UYARI] MPU-9250 bağlanamadı ({e}), MockImuStatic kullanılıyor.")
+            imu_sensor = MockImuStatic()
         ori = Orientation(imu_sensor)
 
         try:
             depth_sensor = Ms5837()
             print("[OK] MS5837 Derinlik Sensörü bağlandı.")
         except Exception as e:
-            print(f"[UYARI] MS5837 bağlanamadı ({e}), MockDepth kullanılıyor.")
-            depth_sensor = MockDepth()
+            print(f"[UYARI] MS5837 bağlanamadı ({e}), MockDepthStatic kullanılıyor.")
+            depth_sensor = MockDepthStatic()
         depth = depth_sensor
 
         return thr, ori, depth
 
 
-def save_pid_to_config(axis_key, pid_dict, path="config.py"):
+def save_pid_to_config(axis_key, pid_dict, path="../config.py"):
     """Seçilen PID eksenini config.py dosyasına kaydeder."""
+    CONFIG_PATH = os.path.normpath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'config.py')
+    )
+    path = CONFIG_PATH
     shutil.copy(path, path + ".bak")
     with open(path) as f:
         text = f.read()

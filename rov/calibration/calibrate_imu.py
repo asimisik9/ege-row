@@ -1,165 +1,190 @@
 """
-IMU (pusula) kalibrasyon scripti.
+EGE ROV — IMU Kalibrasyon Scripti (Eksen Bağımsız, 9-DoF)
 
-Kullanim (cihazda, rov/ klasoru icinden):
-    python3 calibrate_imu.py
+IMU (MPU-9250) fiziksel olarak ROV'a hangi açıda monte edilmiş olursa
+olsun, ROV'un kendi doğal duruşunu referans alarak tüm kalibrasyon
+parametrelerini otomatik hesaplar ve config.py'ye yazar.
 
-Ne yapar:
-  1) Adim: Arac SABIT dururken 5 sn olcum yapar -> GYRO_BIAS hesaplar.
-  2) Adim: Sen araci elinle her yone cevirirken 15 sn olcum yapar
-     -> MAG_OFFSET / MAG_SCALE hesaplar.
-  3) Sonuclari ekrana basar ve config.py dosyasini OTOMATIK gunceller
-     (eski hali config.py.bak olarak yedeklenir).
+Önceki calibrate_imu.py'den farkı:
+  - ROV'u yatay tutmak GEREKMEZ
+  - İvmeölçer Z ekseninde 1g varsaymaz → her açıda doğru çalışır
+  - MOUNT_PITCH_DEG / MOUNT_ROLL_DEG: ROV'un doğal duruşundan sapma
+    Orientation sınıfı bu değerleri çıkararak her zaman doğal duruşu
+    roll=0°, pitch=0° olarak kabul eder
 
-Not: Bu script gercek IMU donanimi bagliyken calisir (SIM_MODE ile ilgisi yok,
-     dogrudan sensoru okur). Simulasyonda / donanimsiz calistirilamaz.
+Adımlar:
+  1) Gyro Bias    : ROV sabit 5 sn → GYRO_BIAS
+  2) Accel+Montaj : ROV doğal duruşunda 5 sn → ACCEL_BIAS, MOUNT_PITCH_DEG, MOUNT_ROLL_DEG
+  3) Pusula (Mag) : Her yöne çevir 15 sn → MAG_OFFSET, MAG_SCALE
+  4) config.py'ye yaz (yedek .bak olarak alınır)
+
+Kullanım (cihazda, rov/ klasöründen):
+    python3 calibration/calibrate_imu.py
 """
+import math
 import re
 import shutil
+import statistics
 import time
-
 import sys
 import os
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+CONFIG_PATH = os.path.normpath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'config.py')
+)
 
 from sensors.imu import Mpu9250
 
 
+# ─────────────────────────────────────────────── yardımcılar
+
 def _avg(vals):
-    """Bir listenin aritmetik ortalamasini dondurur."""
     return sum(vals) / len(vals)
 
 
+def _sample(imu, read_fn, duration_s, label, print_live=False):
+    """İMU'dan duration_s saniye boyunca (gx,gy,gz) / (ax,ay,az) vb. örnekler.
+    (xs, ys, zs) listelerini döner."""
+    xs, ys, zs = [], [], []
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < duration_s:
+        v = read_fn()
+        xs.append(v[0]); ys.append(v[1]); zs.append(v[2])
+        if print_live:
+            elapsed = time.monotonic() - t0
+            remaining = duration_s - elapsed
+            print(f"    {remaining:4.1f}s kaldı  "
+                  f"X:{v[0]:7.2f}  Y:{v[1]:7.2f}  Z:{v[2]:7.2f}", end="\r")
+        time.sleep(0.02)
+    if print_live:
+        print()
+    return xs, ys, zs
+
+
+# ─────────────────────────────────────────────── adım 1: gyro
+
 def calibrate_gyro(imu, duration_s=5.0):
-    """Arac hareketsizken jiroskopu duration_s saniye orneklyip ortalama
-    sapmayi (GYRO_BIAS) hesaplar. HAM okuma kullanilir ki onceki
-    kalibrasyon degerleri ust uste binmesin. Ideal jiroskop durgun halde
-    0 okumali; olculen ortalama gercek okumadan cikarilarak sapma giderilir."""
-    print(f"\nOlculuyor ({duration_s:.0f} sn) - ARACA DOKUNMA...")
-    xs, ys, zs = [], [], []
-    t0 = time.monotonic()
-    while time.monotonic() - t0 < duration_s:
-        gx, gy, gz = imu.read_gyro_dps_raw()
-        xs.append(gx)
-        ys.append(gy)
-        zs.append(gz)
-        time.sleep(0.02)
-    bias = (round(_avg(xs), 3), round(_avg(ys), 3), round(_avg(zs), 3))
-    print(f"GYRO_BIAS olculen deger: {bias}")
+    """Gyro bias: ROV hareketsizken ortalama sapma değeri.
+    İdeal jiroskop durgun halde 0 dps okur; ölçülen ortalama = bias."""
+    print(f"\n[1/3] GYRO — ROV'u SABIT TUT ({duration_s:.0f} sn, hareketsiz)...")
+    xs, ys, zs = _sample(imu, imu.read_gyro_dps_raw, duration_s, "gyro", print_live=True)
 
-    # Kalite kontrolü: Gerçek hareket var mı? (Standart sapma ile kontrol)
-    import statistics
-    std_x = statistics.pstdev(xs)
-    std_y = statistics.pstdev(ys)
-    std_z = statistics.pstdev(zs)
-    max_std = max(std_x, std_y, std_z)
+    bias = (round(_avg(xs), 4), round(_avg(ys), 4), round(_avg(zs), 4))
+    std_max = max(statistics.pstdev(xs), statistics.pstdev(ys), statistics.pstdev(zs))
 
-    if max_std > 1.5:
-        print(f"[UYARI] Ölçüm sırasında belirgin hareket algılandı (Standart Sapma: {max_std:.2f} dps)! "
-              "Aracı tamamen sabit tutup tekrar çalıştırın.")
-    # SORUN 1 (ikinci kisim): config'te GYRO_BIAS gx = 5.677 dps yaziyordu.
-    # MPU-9250 tipik fabrika sapmasi +-5 dps civari; 5.677 sinirda ve
-    # muhtemelen olcum sirasinda arac hareket ettigi icin bu kadar cikmis.
-    # Jiroskop sapmasi heading'i DOGRUDAN suruklendirir (aciyi toplayarak
-    # buluyoruz), o yuzden burada sert davraniyoruz.
-    if max_std > 1.5:
-        print("[HATA] Olcum sirasinda arac hareket ediyordu — sonuc gecersiz.")
-        return None
-    if max(abs(b) for b in bias) > 10.0:
-        print("[HATA] Bias cok buyuk (>10 dps) — sensor arizali olabilir "
-              "veya olcum sirasinda arac donduruldu. Sonuc gecersiz.")
-        return None
-    if max(abs(b) for b in bias) > 5.0:
-        print("[UYARI] Bias yuksek (>5 dps). Kabul edilebilir ama tekrar "
-              "olcmeni oneririm — heading suruklenmesini bu belirler.")
-    print("[OK] Jiroskop kalibrasyonu makul aralikta.")
+    print(f"    GYRO_BIAS  = {bias}")
+    if std_max > 1.5:
+        print(f"    [UYARI] Gürültü yüksek (std={std_max:.2f} dps) — ölçüm sırasında hareket var mıydı?")
+    if max(abs(b) for b in bias) > 15.0:
+        print("    [UYARI] Bias çok büyük (>15 dps) — sensör arızalı olabilir.")
     return bias
 
 
-def calibrate_accel(imu, duration_s=5.0):
-    """Arac düz bir zeminde hareketsizken ivmeolceri ornekler ve
-    ivmeolcer sapmasini (ACCEL_BIAS) hesaplar. Arac düzken
-    beklenen ivme (0, 0, 1) olmalidir."""
-    print(f"\nOlculuyor ({duration_s:.0f} sn) - İvmeölçer için... ARACA DOKUNMA...")
-    xs, ys, zs = [], [], []
-    t0 = time.monotonic()
-    while time.monotonic() - t0 < duration_s:
-        ax, ay, az = imu.read_accel_g_raw()
-        xs.append(ax)
-        ys.append(ay)
-        zs.append(az)
-        time.sleep(0.02)
-    # Z ekseninden yerçekimini çıkar (1g varsayarak)
-    bias = (round(_avg(xs), 3), round(_avg(ys), 3), round(_avg(zs) - 1.0, 3))
-    print(f"ACCEL_BIAS olculen deger: {bias}")
+# ─────────────────────────────────────────────── adım 2: accel + montaj açısı
 
-    # ==================================================================
-    # SORUN 1'IN KOK NEDENI BURADAYDI — ARTIK ENGELLENIYOR
-    # ==================================================================
-    # config.py'de ACCEL_BIAS = (2.0, -2.0, -0.296) yaziyordu.
-    # MPU-9250 varsayilan +-2g araliginda calisiyor (16384 LSB/g), yani
-    # 2.0 g'lik bir "sapma" SENSORUN TUM OLCUM ARALIGI kadar. Bu fiziksel
-    # olarak bir bias degeri OLAMAZ; olcum doyuma girmisken (arac
-    # sallanirken) kalibre edilmis demektir.
-    #
-    # SONUCU (gercek log ile dogrulandi): arac dumduz dururken program
-    # roll = -57.06 derece saniyordu. Ustelik pusula hesabi egim telafisi
-    # icin roll/pitch kullandigi icin HEADING DE bozuluyordu.
-    # 10 saniyede 154 -> 98 derece kayma bu yuzdendi.
-    #
-    # Artik bozuk deger config.py'ye YAZILAMIYOR.
-    import statistics
-    hareket = max(statistics.pstdev(xs), statistics.pstdev(ys), statistics.pstdev(zs))
-    en_buyuk = max(abs(b) for b in bias)
-    norm = (_avg(xs) ** 2 + _avg(ys) ** 2 + _avg(zs) ** 2) ** 0.5
+def calibrate_accel_and_mount(imu, duration_s=5.0):
+    """İvmeölçer bias'ı ve IMU montaj açısını ölçer.
 
-    sorunlar = []
-    if en_buyuk > 0.3:
-        sorunlar.append(
-            f"ACCEL_BIAS cok buyuk ({en_buyuk:.2f} g > 0.3 g). Ivmeolcer +-2g\n"
-            "     araliginda; bu buyuklukte bir sapma fiziksel olarak olamaz.")
-    if hareket > 0.05:
-        sorunlar.append(
-            f"Olcum sirasinda HAREKET algilandi (std {hareket:.3f} g > 0.05 g).")
-    if not (0.85 < norm < 1.15):
-        sorunlar.append(
-            f"Toplam ivme buyuklugu {norm:.2f} g — 1.0 g olmaliydi.\n"
-            "     Arac duz durmuyor ya da sensor doyuma girmis.")
+    Yöntem (eksen bağımsız):
+      ROV'un doğal duruşunda yerçekimi vektörü IMU çerçevesinde ölçülür:
+        G = (ax_avg, ay_avg, az_avg)   |G| ≈ 1g
 
-    if sorunlar:
-        print("\n" + "!" * 72)
-        print("[HATA] IVMEOLCER KALIBRASYONU GECERSIZ:")
-        for x in sorunlar:
-            print("  -> " + x)
-        print("\n  YAP: Araci DUZ bir zemine koy, hicbir sey dokunmasin,")
-        print("       titresim olmasin, sonra tekrar calistir.")
-        print("  (Bozuk deger config.py'ye YAZILMAYACAK.)")
-        print("!" * 72 + "\n")
-        return None
-    print("[OK] Ivmeolcer kalibrasyonu fiziksel sinirlar icinde.")
-    return bias
+      Bu vektörden montaj açıları:
+        MOUNT_ROLL  = atan2(ay, az)              ← IMU Y/Z düzlemindeki roll
+        MOUNT_PITCH = atan2(-ax, √(ay²+az²))     ← IMU X eksenindeki pitch
 
+      Orientation sınıfı bu değerleri çıkararak ROV'un doğal duruşunu
+      her zaman roll=0°, pitch=0° olarak alır. IMU hangi açıda olursa olsun.
+
+      ACCEL_BIAS: Yerçekimi büyüklüğü normalleşmesinden kalan kazanç hatası.
+    """
+    print(f"\n[2/3] İVMEÖLÇER + MONTAJ AÇISI — ROV DOĞAL DURUMDA ({duration_s:.0f} sn)...")
+    print("      ROV nasıl duruyor ise öyle bırakın (yatay olması GEREKMEZ)")
+    xs, ys, zs = _sample(imu, imu.read_accel_g_raw, duration_s, "accel", print_live=True)
+
+    ax_avg = _avg(xs)
+    ay_avg = _avg(ys)
+    az_avg = _avg(zs)
+    magnitude = math.sqrt(ax_avg**2 + ay_avg**2 + az_avg**2)
+
+    print(f"    Yerçekimi vektörü (IMU çerçeve): ({ax_avg:.4f}, {ay_avg:.4f}, {az_avg:.4f}) g")
+    print(f"    Büyüklük: {magnitude:.4f}g  (ideal: 1.000g)")
+
+    if abs(magnitude - 1.0) > 0.15:
+        print(f"    [UYARI] Büyüklük 1g'den belirgin sapıyor ({magnitude:.3f}g). "
+              "Sensör veya hareket sorunu olabilir. Tekrar deneyin.")
+
+    # Montaj açıları: ROV doğal durumunda IMU'nun gördüğü roll/pitch
+    mount_roll  = math.degrees(math.atan2(ay_avg, az_avg))
+    mount_pitch = math.degrees(math.atan2(-ax_avg, math.hypot(ay_avg, az_avg)))
+
+    # ACCEL_BIAS: normalize birim vektörden sapma (gain hatası, genellikle küçük)
+    if magnitude > 1e-6:
+        # Birim yönde beklenen değerler
+        exp_ax = ax_avg / magnitude
+        exp_ay = ay_avg / magnitude
+        exp_az = az_avg / magnitude
+        accel_bias = (
+            round(ax_avg - exp_ax, 4),
+            round(ay_avg - exp_ay, 4),
+            round(az_avg - exp_az, 4),
+        )
+    else:
+        accel_bias = (0.0, 0.0, 0.0)
+
+    mount_pitch_r = round(mount_pitch, 2)
+    mount_roll_r  = round(mount_roll, 2)
+
+    print(f"    MOUNT_ROLL_DEG  = {mount_roll_r}°")
+    print(f"    MOUNT_PITCH_DEG = {mount_pitch_r}°")
+    print(f"    ACCEL_BIAS      = {accel_bias}")
+
+    if abs(mount_pitch) > 30 or abs(mount_roll) > 30:
+        print("    [BİLGİ] Montaj açısı >30° — bu normaldir; kalibrasyon bunu telafi eder.")
+        print("            Tilt-compensation doğruluğu büyük açılarda azalabilir.")
+
+    return mount_roll_r, mount_pitch_r, accel_bias
+
+
+# ─────────────────────────────────────────────── adım 3: manyetometre
 
 def calibrate_mag(imu, duration_s=15.0):
-    """Arac her yone cevrilirken manyetometreyi duration_s saniye orneklyip
-    hard-iron ofsetini (MAG_OFFSET) ve soft-iron olcegini (MAG_SCALE)
-    hesaplar. Mantik: her eksendeki min/max degerlerin ortasi ofset,
-    yaricaplarin esitlenmesi de eksenler arasi olcek farkini duzeltir."""
-    print(f"\n{duration_s:.0f} saniye boyunca ARACI YAVASCA HER YONE CEVIR "
-          "(saga-sola, yukari-asagi, tam tur) ...")
+    """Hard-iron ofseti (MAG_OFFSET) ve soft-iron ölçeği (MAG_SCALE).
+    Yöntem: min/max örnekleme → merkez = hard-iron, yarıçap oranı = soft-iron."""
+    print(f"\n[3/3] MANYETOMETRe — {duration_s:.0f} sn boyunca ROV'u HER YÖNE ÇEVİR...")
+    print("      Sağa-sola, yukarı-aşağı, tam tur — yavaşça ve sürekli")
+
+    # Eger mag arizasi nedeniyle has_mag=False olduysa bunu iptal et
+    if not getattr(imu, "has_mag", True):
+        print("    [UYARI] Manyetometre erisilemedigi icin bu adim ATLANDI.")
+        return (0.0, 0.0, 0.0), (1.0, 1.0, 1.0)
+
     xs, ys, zs = [], [], []
     t0 = time.monotonic()
     while time.monotonic() - t0 < duration_s:
-        mx, my, mz = imu.read_mag_ut_raw()   # HAM okuma (onceki kalibrasyon binmesin)
-        xs.append(mx)
-        ys.append(my)
-        zs.append(mz)
-        time.sleep(0.02)
-    print("Tamam, aracı birakabilirsin.")
+        try:
+            m = imu.read_mag_ut_raw()
+            if m:
+                xs.append(m[0]); ys.append(m[1]); zs.append(m[2])
+                elapsed = time.monotonic() - t0
+                remaining = duration_s - elapsed
+                print(f"    {remaining:4.1f}s kaldı  "
+                      f"X:[{min(xs):5.0f},{max(xs):5.0f}]  "
+                      f"Y:[{min(ys):5.0f},{max(ys):5.0f}]  "
+                      f"Z:[{min(zs):5.0f},{max(zs):5.0f}] µT", end="\r")
+        except OSError:
+            pass
+        time.sleep(0.05)
+    print()
+    print("    Tamam.")
+
+    if not xs:
+        print("    [UYARI] Manyetometreden hic veri alinamadi.")
+        return (0.0, 0.0, 0.0), (1.0, 1.0, 1.0)
 
     def offset_radius(vals):
-        """Bir eksendeki degerler icin (ofset, yaricap) dondurur:
-        ofset = (max+min)/2 (hard-iron kaymasi), yaricap = (max-min)/2."""
         return (max(vals) + min(vals)) / 2.0, (max(vals) - min(vals)) / 2.0
 
     ox, rx = offset_radius(xs)
@@ -167,86 +192,133 @@ def calibrate_mag(imu, duration_s=15.0):
     oz, rz = offset_radius(zs)
     avg_r = (rx + ry + rz) / 3.0
 
-    # kalite kontrolu: her eksende yeterli donus yapildi mi?
-    # Yeryuzu manyetik alani ~25-65 uT; yaricap cok kucukse o eksen az cevrilmis.
     for name, r in (("X", rx), ("Y", ry), ("Z", rz)):
         if r < 10.0:
-            print(f"[UYARI] {name} ekseni yaricapi kucuk ({r:.1f} uT) - arac o "
-                  "eksende yeterince cevrilmemis. Kalibrasyonu tekrarla!")
+            print(f"    [UYARI] {name} ekseni yarıçapı küçük ({r:.1f} µT) — "
+                  "o yönde yeterince çevrilmedi. Tekrar dene!")
     if avg_r > 100.0:
-        print(f"[UYARI] Ortalama yaricap cok buyuk ({avg_r:.0f} uT) - yakinlarda "
-              "miknatis/motor/metal olabilir, araci ortamdan uzaklastir.")
+        print(f"    [UYARI] Büyük manyetik bozucu ({avg_r:.0f} µT) — "
+              "motor/metal/kablo yakında mı? Uzaklaştır.")
 
     offset = (round(ox, 2), round(oy, 2), round(oz, 2))
-    scale = (
-        round(avg_r / rx, 3) if rx else 1.0,
-        round(avg_r / ry, 3) if ry else 1.0,
-        round(avg_r / rz, 3) if rz else 1.0,
+    scale  = (
+        round(avg_r / rx, 3) if rx > 1e-6 else 1.0,
+        round(avg_r / ry, 3) if ry > 1e-6 else 1.0,
+        round(avg_r / rz, 3) if rz > 1e-6 else 1.0,
     )
-    print(f"MAG_OFFSET olculen deger: {offset}")
-    print(f"MAG_SCALE  olculen deger: {scale}")
+    print(f"    MAG_OFFSET = {offset}")
+    print(f"    MAG_SCALE  = {scale}")
     return offset, scale
 
 
-def write_config(gyro_bias, accel_bias, mag_offset, mag_scale, path="config.py"):
-    """config.py icindeki GYRO_BIAS / MAG_OFFSET / MAG_SCALE satirlarini
-    regex ile yeni olculen degerlerle degistirir. Once dosyayi .bak olarak
-    yedekler ki yanlis kalibrasyonda eski hale donulebilsin."""
+# ─────────────────────────────────────────────── config.py yazar
+
+def write_config(gyro_bias, accel_bias, mag_offset, mag_scale,
+                 mount_roll, mount_pitch, path=None):
+    """Tüm kalibrasyon parametrelerini config.py'ye yazar.
+    Önce config.py.bak olarak yedek alır.
+    Parametre zaten varsa → regex ile günceller.
+    Yoksa → IMU kalibrasyon bloğuna ekler."""
+    if path is None:
+        path = CONFIG_PATH
+
     shutil.copy(path, path + ".bak")
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         text = f.read()
 
-    text = re.sub(r"GYRO_BIAS\s*=.*",
-                  f"GYRO_BIAS  = {gyro_bias}  # kalibrasyon ile olculdu", text)
-    if "ACCEL_BIAS" in text:
-        text = re.sub(r"ACCEL_BIAS\s*=.*",
-                      f"ACCEL_BIAS = {accel_bias}  # kalibrasyon ile olculdu", text)
-    else:
-        text = text.replace(f"GYRO_BIAS  = {gyro_bias}  # kalibrasyon ile olculdu",
-                            f"GYRO_BIAS  = {gyro_bias}  # kalibrasyon ile olculdu\n"
-                            f"ACCEL_BIAS = {accel_bias}  # kalibrasyon ile olculdu")
-    text = re.sub(r"MAG_OFFSET\s*=.*",
-                  f"MAG_OFFSET = {mag_offset}  # kalibrasyon ile olculdu", text)
-    text = re.sub(r"MAG_SCALE\s*=.*",
-                  f"MAG_SCALE  = {mag_scale}  # kalibrasyon ile olculdu", text)
+    def _set(text, key, value, comment):
+        line = f"{key} = {value}  # {comment}"
+        pattern = fr"^{re.escape(key.strip())}\s*=.*"
+        if re.search(pattern, text, re.MULTILINE):
+            return re.sub(pattern, line, text, flags=re.MULTILINE, count=1)
+        else:
+            # Yoksa ACCEL_BIAS satırının hemen altına ekle (bulunamazsa sona)
+            if "ACCEL_BIAS" in text:
+                return text.replace("ACCEL_BIAS", f"ACCEL_BIAS\n{line}\n", 1)
+            return text + f"\n{line}\n"
 
-    with open(path, "w") as f:
+    c = "calibrate_imu.py ile ölçüldü"
+    text = _set(text, "GYRO_BIAS      ", str(gyro_bias),    c)
+    text = _set(text, "ACCEL_BIAS     ", str(accel_bias),   c)
+    text = _set(text, "MAG_OFFSET     ", str(mag_offset),   c)
+    text = _set(text, "MAG_SCALE      ", str(mag_scale),    c)
+    text = _set(text, "MOUNT_ROLL_DEG ", str(mount_roll),
+                "IMU montaj roll ofseti — calibrate_imu.py")
+    text = _set(text, "MOUNT_PITCH_DEG", str(mount_pitch),
+                "IMU montaj pitch ofseti — calibrate_imu.py")
+
+    with open(path, "w", encoding="utf-8") as f:
         f.write(text)
-    print(f"\nconfig.py guncellendi. Eski hali: {path}.bak")
+    print(f"\n    [OK] config.py güncellendi: {path}")
+    print(f"    [OK] Yedek: {path}.bak")
 
+
+# ─────────────────────────────────────────────── ana akış
 
 def main():
-    """Kalibrasyon akisini yonetir: once jiroskop (arac sabit), sonra
-    manyetometre (arac elle cevrilerek) olculur, sonuclar ozetlenip
-    config.py dosyasina yazilir."""
-    print("=== IMU Kalibrasyonu ===")
-    input("\n1) ARACI SABIT TUT (hic kipirdatma). Hazir olunca ENTER'a bas...")
-    imu = Mpu9250()
+    print("=" * 65)
+    print("  EGE ROV — IMU KALİBRASYONU  (Eksen Bağımsız, 9-DoF)")
+    print("=" * 65)
+    print("""
+Bu script IMU montaj açısından bağımsız çalışır.
+ROV'u yatay tutmak GEREKMEZ — kendi doğal duruşunu referans alır.
 
-    gyro_bias = calibrate_gyro(imu)
-    accel_bias = calibrate_accel(imu)
+Adımlar:
+  1) Gyro    — ROV SABİT (5 sn)
+  2) Accel   — ROV DOĞAL DURUMDA (5 sn)  ← montaj açısı da ölçülür
+  3) Pusula  — ROV HER YÖNE ÇEVİR (15 sn)
 
-    # SORUN 1: gecersiz olcum config.py'ye ASLA yazilmaz.
-    if gyro_bias is None or accel_bias is None:
-        print("\n" + "=" * 72)
-        print("KALIBRASYON BASARISIZ — config.py DEGISTIRILMEDI.")
-        print("Araci duz, sabit bir zemine koyup tekrar calistir.")
-        print("=" * 72)
+Sonuçlar:
+  GYRO_BIAS, ACCEL_BIAS, MAG_OFFSET, MAG_SCALE,
+  MOUNT_PITCH_DEG, MOUNT_ROLL_DEG  → config.py'ye yazılır
+""")
+    input("Hazır olunca ENTER...")
+
+    print("\nMPU-9250 bağlanıyor...")
+    try:
+        imu = Mpu9250()
+        print("[OK] IMU bağlandı.")
+    except Exception as e:
+        print(f"\n[HATA] IMU baglanamadi: {e}")
         return
 
-    input("\n2) Simdi araci elinle cevirmeye hazirlan. "
-          "Hazir olunca ENTER'a bas, sonra hemen cevirmeye basla...")
-    mag_offset, mag_scale = calibrate_mag(imu)
+    # ── 1) Gyro
+    gyro_bias = calibrate_gyro(imu, duration_s=5.0)
 
-    print("\n--- OZET ---")
-    print(f"GYRO_BIAS  = {gyro_bias}")
-    print(f"ACCEL_BIAS = {accel_bias}")
-    print(f"MAG_OFFSET = {mag_offset}")
-    print(f"MAG_SCALE  = {mag_scale}")
+    # ── 2) Accel + Montaj açısı
+    print()
+    input("ROV'u doğal duruşuna getir (nasıl monte edilmişse öyle). ENTER...")
+    mount_roll, mount_pitch, accel_bias = calibrate_accel_and_mount(imu, duration_s=5.0)
 
-    write_config(gyro_bias, accel_bias, mag_offset, mag_scale)
-    print("\nBitti. Simdi gorevi baslatabilirsin: 'python3 video_main.py' "
-          "(ya da tam sistem icin 'python3 main.py').")
+    # ── 3) Manyetometre
+    print()
+    input("Pusula kalibrasyonu için ENTER (ardından 15 sn boyunca çevir)...")
+    mag_offset, mag_scale = calibrate_mag(imu, duration_s=15.0)
+
+    # ── Özet
+    print("\n" + "=" * 65)
+    print("ÖZET — config.py'ye yazılacak:")
+    print(f"  GYRO_BIAS       = {gyro_bias}")
+    print(f"  ACCEL_BIAS      = {accel_bias}")
+    print(f"  MAG_OFFSET      = {mag_offset}")
+    print(f"  MAG_SCALE       = {mag_scale}")
+    print(f"  MOUNT_ROLL_DEG  = {mount_roll}°")
+    print(f"  MOUNT_PITCH_DEG = {mount_pitch}°")
+    print("=" * 65)
+
+    write_config(gyro_bias, accel_bias, mag_offset, mag_scale, mount_roll, mount_pitch)
+
+    print("""
+Doğrulama:
+  python3 tests/test_imu.py
+  → ROV doğal durumundayken:
+      Roll  ≈ 0°   (±2° normal)
+      Pitch ≈ 0°   (±2° normal)
+      Heading  kararlı, sürükleme yok
+
+Görev başlatmak için:
+  python3 video_main.py
+""")
 
 
 if __name__ == "__main__":

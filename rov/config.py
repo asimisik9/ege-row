@@ -212,6 +212,7 @@ SURFACE_PRESSURE_MBAR = 1010.0  # kalibrasyon ile olculdu (calibrate_depth.py)
                              # None: gorev basinda zero_at_surface() ile olculur
 
 # IMU fuzyon + kalibrasyon (cihaz uzerinde olculecek)
+USE_MAGNETOMETER = False  # EGE ROV donaniminda pusula modulu kullanilmiyor (AK8963 devre disi)
 HEADING_FILTER_ALPHA = 0.98  # jiroskop agirligi (0..1), kalani manyetometre
 MAG_OFFSET = (-11.1, -11.47, 38.47)  # kalibrasyon ile olculdu
 MAG_SCALE  = (1.179, 0.876, 0.989)  # kalibrasyon ile olculdu
