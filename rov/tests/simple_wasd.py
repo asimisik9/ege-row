@@ -21,6 +21,10 @@ Tuşlar:
 import sys
 import time
 import select
+import os
+
+# Üst dizini path'e ekle (hal, config vb. import edilebilmesi için ZORUNLU)
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # PCA9685 Donanım Bağlantısı (bus numarası ile — bkz. hal/i2c.py)
 try:
@@ -29,10 +33,6 @@ try:
 except ImportError:
     _HW_OK = False
     print("[UYARI] PCA9685 kütüphanesi bulunamadı! Simülasyon modunda çalışıyor.")
-
-import sys
-import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from config import (PWM_NEUTRAL_US, PWM_RANGE_US, PWM_MIN_US, PWM_MAX_US, FREQ_HZ,
                     MOTOR_CHANNELS, MOTOR_DIRECTION)
