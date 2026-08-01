@@ -43,8 +43,15 @@ cok az kuculur (orn. 0.100 -> 0.094). Bu, ucurumdan (0'a dusme) cok daha iyi
 bir takas. Havuzda sorun cikarirsa config.DEADBAND_COMPENSATION = False ile
 tek satirda kapatilabilir.
 """
+import config
 from config import (MOTOR_DIRECTION, THRUST_LIMIT,
                     PWM_DEADBAND_US, PWM_RANGE_US)
+
+# NOT: THRUST_LIMIT asagida `config.THRUST_LIMIT` olarak OKUNUR, yukaridaki
+# import edilmis kopya uzerinden degil. Sebep: yer istasyonundan guc sinirini
+# calisirken kisabilmek (ilk havuz testlerinde sart). Modulden import edilen
+# deger sabit kalir, config modulundeki nitelik ise canli degisir.
+# Yukaridaki THRUST_LIMIT importu eski kodla uyum icin duruyor.
 
 try:
     from config import DEADBAND_COMPENSATION
@@ -109,7 +116,8 @@ def mix(surge, yaw, heave, roll=0.0, pitch=0.0):
         for k in m:
             m[k] = deadband_compensate(m[k])
 
-    # yon duzeltme + genel guc siniri
+    # yon duzeltme + genel guc siniri (canli: config.THRUST_LIMIT)
+    limit = getattr(config, "THRUST_LIMIT", THRUST_LIMIT)
     for k in m:
-        m[k] = m[k] * MOTOR_DIRECTION[k] * THRUST_LIMIT
+        m[k] = m[k] * MOTOR_DIRECTION[k] * limit
     return m

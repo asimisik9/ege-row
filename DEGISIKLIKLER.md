@@ -514,3 +514,114 @@ Bir şeyi değiştirmemek de bir karardır. Gerekçeleri:
 - ❌ `MOTOR_DIRECTION` hâlâ doğrulanmadı.
 
 Bunlar zaten havuz protokolünün işi (`PID_TASARIM_PLANI.md` §7).
+
+---
+
+# BÖLÜM 7 — Yer istasyonu (Web GCS) onarımı ve genişletmesi
+
+## 7.1 — Sayfayı tamamen kilitleyen yazım hatası
+
+**Nerede:** `gcs/js/app.js`
+
+`document.getElementById('btn-minrov_back')` yazılmıştı; HTML'deki id ise
+`btn-minrov-back` (alt çizgi yerine tire). `null.addEventListener` fırlattığı için
+`DOMContentLoaded` işleyicisinin **tamamı** o satırda çöküyordu. Sonuç: PID paneli
+bağlanmıyor, klavye teleop çalışmıyor ve dosyanın sonundaki `pollTelemetry()`
+**hiç başlamıyordu**. Arayüz bu yüzden sıfırlarda donuk kalıyordu.
+
+**Çözüm:** id düzeltildi; ayrıca `$()` / `on()` yardımcıları eklendi — eksik bir
+element artık konsola uyarı yazar, sayfanın geri kalanı çalışmaya devam eder.
+Açılışta bulunamayan tüm id'ler tek seferde raporlanır.
+
+## 7.2 — Video akışı sunucuyu kilitliyordu
+
+**Nerede:** `comms/web_server.py`
+
+`HTTPServer` tek thread'li; `/video_feed` ise sonsuz döngü. Kamera akışı başlar
+başlamaz `/api/telemetry` bir daha cevap alamıyordu.
+
+**Çözüm:** `ThreadingHTTPServer` + HTTP/1.1 kalıcı bağlantı + API yanıtlarında
+`Content-Length`. MJPEG parça başlıkları elle yazılıyor (`send_header` HTTP/1.1'de
+ana yanıt başlıklarına karışıyordu).
+
+**Ölçüm:** video akarken 3 saniyede 9494 telemetri isteği, ortalama 0.3 ms
+gecikme, 25 eşzamanlı istemci hatasız.
+
+## 7.3 — "Hedef belirleme çalışmıyor" — kök neden
+
+**Nerede:** `control/operator.py` (yeni), `main.py::_run_mission_loop`
+
+Görevlerin `step()` metodu her çağrılışta kendi hedefini geri yazıyor:
+
+```
+missions/video_demo.py:118   set_targets(depth_m=M["target_depth_m"])
+missions/line_follow.py:108  set_targets(depth_m=LINE_TARGET_DEPTH)
+missions/nav_mission.py:119  set_targets(depth_m=NAV_TARGET_DEPTH)
+```
+
+Ana döngü 50 Hz döndüğü için web'den verilen hedef **20 milisaniye** içinde
+siliniyordu. Arayüzde hedef değişiyor gibi görünüyordu çünkü telemetri bir
+sonraki karede görevin hedefini geri okuyordu.
+
+**Çözüm:** hedefin sahibini açıkça belirleyen mod anahtarı. `mission.step()`
+artık **sadece AUTO** modunda çalışır.
+
+| Mod | Hedefin sahibi | Ne için |
+|---|---|---|
+| `AUTO` | görev | yarışma (eski davranış) |
+| `HOLD` | operatör | "şu derinlikte, şu yönde dur" — adım testleri |
+| `HOVER` | — (derinlik PID kapalı) | `FF_HOVER` ölçümü |
+| `RATE` | operatör (dönüş hızı) | daire çapı ayarı |
+| `TELEOP` | operatör (eksenler) | doğrudan sürüş |
+
+AUTO modunda hedef verilirse API artık sessizce yutmak yerine
+*"AUTO modunda hedef görev tarafından eziliyor, önce HOLD'a geç"* diye reddediyor.
+
+**Doğrulama:** `main.py::_run_mission_loop` içinde, her `step()`'te
+`set_targets(depth_m=0.6)` çağıran sahte görevle:
+AUTO'da hedef 400 ms'de 0.6'ya döndü; HOLD'da 3.0 m hedefi 3 saniye boyunca
+korundu ve araç hedefe yaklaştı.
+
+## 7.4 — Arayüze eklenen veriler
+
+Kodda zaten üretilen ama hiçbir yerde görünmeyen değerler:
+
+- **Sensör sağlığı:** IMU/derinlik frekansı, veri yaşı, hata sayacı, watchdog
+  durumu. Watchdog görevi iptal ediyordu ama operatör *neden* iptal olduğunu
+  göremiyordu.
+- **Kontrol döngüsü:** ölçülen Hz, en kötü adım süresi, takılma sayısı, toplam
+  adım. H1 kabul kriteri (≥30 Hz) canlı GEÇTİ/KALDI olarak gösteriliyor.
+- **Dikey hız** (`depth_rate_mps`) — PID'in D terimi bunu kullanıyordu, ekranda yoktu.
+- **Motor PWM darbeleri** (µs) — ölü bant/doyma sorunları normalize komuta
+  bakarak fark edilmez.
+- Jiroskop ham eksenleri, yüzey referans basıncı, dönüş hızı, yön modu.
+- GPS fix / sonar mesafesi (Görev 2), görev iç sayaçları (yüzey ihlali, daire
+  açısı, tarama açısı).
+- Her PID'in **P/I/D terim katkıları**, çıkış doyması, canlı hata/çıkış grafiği.
+
+## 7.5 — Arayüze eklenen kontroller
+
+- Derinlik/yön hedefi: mutlak **ve bağıl** (±10 cm, ±90° gibi tek tuş).
+- Hedefi bırakma (`clear_target`) — PID o ekseni artık tutmaz.
+- Yön modu seçimi: `cruise` / `turn` / `circle`.
+- İleri gaz, dönüş hızı hedefi, hover gazı, `FF` (asılı kalma gücü).
+- Yüzey referansını sıfırlama.
+- Canlı `THRUST_LIMIT` / `SLEW_RATE` — ilk havuz testlerinde gücü kısmak için.
+  (`control/mixer.py` ve `hal/thrusters.py` artık bu ikisini `config` modülünden
+  **canlı** okuyor; import edilmiş kopya sabit kalıyordu.)
+- Adım cevabı testi + analizi: aşım %, yerleşme süresi, kalıcı hata, RMS ve
+  *"ne yapmalı"* önerisi — `pid_tune.py`'daki matematiğin aynısı
+  (`control/operator.py::StepRecorder`), böylece konsol ve web aynı sonucu verir.
+- Görev başlat/durdur **gerçekten çalışıyor**. Eskiden görev butonları sadece
+  konsola yazı yazıyordu.
+
+## 7.6 — Donanımsız test
+
+```bash
+cd rov
+python3 -m comms.web_server --demo        # http://localhost:8000/
+```
+
+Basit bir 1. derece araç modeli + gerçek `Stabilizer`/PID nesneleri ile çalışır.
+Kazancı değiştirdiğin an cevabın nasıl değiştiğini havuza girmeden görebilirsin.
+Harici JS kütüphanesi yok — Jetson internetsiz çalışır.

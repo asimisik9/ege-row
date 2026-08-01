@@ -8,6 +8,7 @@ Backend degistirilebilir:
 Guvenlik: arm edilmeden komut gonderilmez; stop() her kosulda notre ceker.
 """
 import time
+import config
 from config import (MOTOR_CHANNELS, PWM_NEUTRAL_US, PWM_MIN_US, PWM_MAX_US,
                     PWM_DEADBAND_US, SLEW_RATE, FREQ_HZ,
                     ESC_ABS_MIN_US, ESC_ABS_MAX_US)
@@ -95,7 +96,8 @@ class Thrusters:
         now = time.monotonic()
         dt = min(0.1, now - self._last_t)
         self._last_t = now
-        max_step = SLEW_RATE * dt
+        # SLEW_RATE canli okunur (yer istasyonundan degistirilebilir)
+        max_step = getattr(config, "SLEW_RATE", SLEW_RATE) * dt
 
         for name, target in motor_dict.items():
             target = max(-1.0, min(1.0, target))

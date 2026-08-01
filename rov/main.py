@@ -160,16 +160,45 @@ def check_loop(hub, seconds=10.0):
 
 
 # ──────────────────────────────────────── ortak gorev kosturucu
-def _run_mission_loop(mission, thr, stab, estop, gcs, hub, log, ad):
-    """Tum gorevler icin ortak ana dongu: deadline zamanlayici + watchdog."""
+def _run_mission_loop(mission, thr, stab, estop, gcs, hub, log, ad,
+                      mission_factory=None):
+    """Tum gorevler icin ortak ana dongu: deadline zamanlayici + watchdog.
+
+    OPERATOR MODU (yeni — bkz. control/operator.py)
+    ------------------------------------------------
+    Eskiden bu dongu KOSULSUZ `mission.step()` cagiriyordu. Gorevlerin step()
+    metodu ise her cagrilista `stab.set_targets(...)` yaziyor:
+
+        missions/video_demo.py:118   set_targets(depth_m=M["target_depth_m"])
+        missions/line_follow.py:108  set_targets(depth_m=LINE_TARGET_DEPTH)
+        missions/nav_mission.py:119  set_targets(depth_m=NAV_TARGET_DEPTH)
+
+    Bu dongu 50 Hz dondugu icin yer istasyonundan verilen hedef 20 MILISANIYE
+    icinde siliniyordu. "Hedef belirleme calismiyor" sikayetinin sebebi buydu.
+
+    Artik hedefin sahibi ACIK: mission.step() SADECE AUTO modunda calisir.
+    HOLD / HOVER / RATE / TELEOP modlarinda hedefleri operator yonetir ve
+    hicbir sey ustune yazmaz.
+    """
     from control.mixer import mix
     lt = LoopTimer(LOOP_HZ, warn_hz=LOOP_WARN_HZ, name="control")
+    op = gcs.operator if gcs else None
+
+    # Dongu istatistiklerini, sensor sagligini ve gorev listesini arayuze bagla
+    if gcs:
+        from comms.web_server import g_ctx
+        g_ctx.loop_timer = lt
+        if hub is not None:
+            g_ctx.hub = hub
+        if mission_factory:
+            g_ctx.mission_factory = mission_factory
+
     print(f"{ad} baslatiliyor...")
     mission.start()
     last_print = 0.0
     try:
         while True:
-            lt.tick()
+            now = lt.tick()
 
             # --- WATCHDOG: sensor verisi bayatladiysa ucmaya devam etme ---
             if hub is not None and not hub.healthy():
@@ -177,33 +206,55 @@ def _run_mission_loop(mission, thr, stab, estop, gcs, hub, log, ad):
                 if log:
                     log.event("WATCHDOG: sensor verisi bayat -> ABORT")
                 mission.abort()
+                thr.stop()
                 break
 
-            teleop_axes = gcs.get_teleop() if gcs else None
-            if teleop_axes:
-                thr.command(mix(**teleop_axes))
-            elif estop and estop.triggered.is_set():
+            if estop and estop.triggered.is_set():
                 print("E-STOP tetiklendi — gorev iptal.")
                 if log:
                     log.event("E-STOP")
+                mission.abort()
+                thr.stop()
                 break
+
+            # --- Web'den gorev degistirme istegi ---
+            if gcs and mission_factory:
+                istek = gcs.take_mission_request()
+                if istek and istek in mission_factory:
+                    mission.abort()
+                    mission = mission_factory[istek]()
+                    mission.start()
+                    gcs.set_active_mission(istek.upper(), mission)
+                    print(f"[GCS] Web uzerinden yeni gorev: {istek}")
+                    if log:
+                        log.event(f"WEB: gorev baslatildi -> {istek}")
+
+            # Sensorleri dongu basina TEK KEZ orneklle (SORUN 8).
+            snap = stab.sample(now)
+
+            if op is not None:
+                axes, done, durum = op.step(stab, mission, thr, mix, now=now)
+                # Adim cevabi kaydi (aktif degilse hicbir sey yapmaz)
+                op.recorder.sample(snap, stab, op.rate_target, now=now)
             else:
-                if mission.step():
-                    print("GOREV TAMAMLANDI!")
-                    break
+                done = bool(mission.step())
+                axes = getattr(mission, "last_axes", None)
+                durum = mission.state
+
+            if done:
+                print("GOREV TAMAMLANDI!")
+                break
 
             # 1 Hz terminal logu
-            now = time.monotonic()
             if now - last_print >= 1.0:
                 last_print = now
-                s = hub.state.snapshot() if hub else stab.snap
-                if s:
-                    h = s.heading
-                    d = getattr(s, "depth_m", 0.0)
-                    print(f"[{mission.state:<10}] derinlik={d:5.2f} m  heading={h:6.1f} deg")
+                d = getattr(snap, "depth_m", 0.0)
+                h = getattr(snap, "heading", 0.0)
+                mod = op.get()["mode"] if op else "-"
+                print(f"[{durum:<10}|{mod:<6}] derinlik={d:5.2f} m  heading={h:6.1f} deg")
 
             if gcs:
-                gcs.update_telemetry(mission.state)
+                gcs.update_telemetry(durum)
             lt.sleep()
     except KeyboardInterrupt:
         print("Ctrl+C — iptal.")
@@ -227,14 +278,18 @@ def run_video_demo(thr, ori, depth, hub):
     estop = EStopMonitor(thr)
     mission = VideoDemoMission(stab, thr, logger=log)
 
+    # Web'den baslatilabilecek gorevler (kamera gerektirmeyenler)
+    factory = {"video": lambda: VideoDemoMission(stab, thr, logger=log)}
+
     gcs = WebGCS()
-    gcs.start(thrusters=thr, stabilizer=stab, estop=estop)
+    gcs.start(thrusters=thr, stabilizer=stab, estop=estop, hub=hub,
+              mission_factory=factory)
     gcs.set_active_mission("VIDEO_DEMO", mission)
     estop.start()
 
     try:
         _run_mission_loop(mission, thr, stab, estop, gcs, hub, log,
-                          "Video demo gorevi")
+                          "Video demo gorevi", mission_factory=factory)
     finally:
         if mission.surface_violations:
             print(f"[UYARI] Yuzey ihlali ornegi: {mission.surface_violations} "
@@ -262,13 +317,19 @@ def run_line_follow(thr, ori, depth, hub):
 
     cam.start()
     estop.start()
+    factory = {
+        "line": lambda: LineFollowMission(stab, thr, cam, logger=log),
+        "video": lambda: __import__("missions.video_demo", fromlist=["x"])
+                         .VideoDemoMission(stab, thr, logger=log),
+    }
     gcs = WebGCS()
-    gcs.start(thrusters=thr, stabilizer=stab, camera=cam, estop=estop)
+    gcs.start(thrusters=thr, stabilizer=stab, camera=cam, estop=estop, hub=hub,
+              mission_factory=factory)
     gcs.set_active_mission("LINE_FOLLOW", mission)
 
     try:
         _run_mission_loop(mission, thr, stab, estop, gcs, hub, log,
-                          "Hat takibi gorevi")
+                          "Hat takibi gorevi", mission_factory=factory)
     finally:
         cam.stop()
         estop.stop()
@@ -294,13 +355,16 @@ def run_nav_mission(thr, ori, depth, hub):
     mission = NavMission(stab, thr, cam, gps, sonar, logger=log)
 
     cam.start(); gps.start(); sonar.start(); estop.start()
+    factory = {"nav": lambda: NavMission(stab, thr, cam, gps, sonar, logger=log)}
     gcs = WebGCS()
-    gcs.start(thrusters=thr, stabilizer=stab, camera=cam, estop=estop)
+    # gps/sonar da verilir: konum ve mesafe artik arayuzde canli gorunur
+    gcs.start(thrusters=thr, stabilizer=stab, camera=cam, estop=estop, hub=hub,
+              gps=gps, sonar=sonar, mission_factory=factory)
     gcs.set_active_mission("NAV_MISSION", mission)
 
     try:
         _run_mission_loop(mission, thr, stab, estop, gcs, hub, log,
-                          "Navigasyon gorevi")
+                          "Navigasyon gorevi", mission_factory=factory)
     finally:
         cam.stop(); gps.stop(); sonar.stop()
         estop.stop()

@@ -22,7 +22,10 @@
       <div class="badge" id="badge-conn"><span class="dot"></span> <span class="lbl">BAĞLANTI BEKLENİYOR</span></div>
       <div class="badge" id="badge-arm"><span class="dot"></span> <span class="lbl">DISARMED</span></div>
       <div class="badge" id="badge-estop"><span class="dot"></span> <span class="lbl">E-STOP NORMAL</span></div>
+      <div class="badge" id="badge-health"><span class="dot"></span> <span class="lbl">SENSÖR</span></div>
+      <div class="badge info" id="badge-mode">MOD: AUTO</div>
       <div class="badge info" id="badge-mission">DURUM: IDLE</div>
+      <div class="badge" id="badge-loop"><span class="lbl">— Hz</span></div>
     </div>
 
     <div class="header-actions">
@@ -85,12 +88,12 @@
         <div class="card">
           <span class="lbl">DERİNLİK</span>
           <span class="val" id="val-depth">0.00 <small>m</small></span>
-          <span class="sub" id="val-target-depth">Hedef: 0.00m</span>
+          <span class="sub" id="val-target-depth">Hedef: —</span>
         </div>
         <div class="card">
           <span class="lbl">HEADING (PUSULA)</span>
           <span class="val" id="val-heading">000.0 <small>°</small></span>
-          <span class="sub" id="val-target-heading">Hedef: 000.0°</span>
+          <span class="sub" id="val-target-heading">Hedef: —</span>
         </div>
         <div class="card">
           <span class="lbl">PITCH (YUNUSLAMA)</span>
@@ -102,41 +105,73 @@
           <span class="val" id="val-pressure">1013 <small>mbar</small></span>
           <span class="sub">Sıcaklık: <span id="val-temp">20.0</span>°C</span>
         </div>
+        <div class="card">
+          <span class="lbl">DİKEY HIZ</span>
+          <span class="val" id="val-depth-rate">+0.00 <small>m/s</small></span>
+          <span class="sub">Derinlik hatası: <span id="val-depth-err">0.000</span> m</span>
+        </div>
+        <div class="card">
+          <span class="lbl">DÖNÜŞ HIZI</span>
+          <span class="val" id="val-yawrate">0.0 <small>°/s</small></span>
+          <span class="sub">Yön modu: <span id="val-hmode">—</span></span>
+        </div>
+      </div>
+
+      <!-- Görev 2 sensörleri: sadece veri geldiğinde görünür -->
+      <div class="telemetry-cards" id="nav-cards" style="display:none;">
+        <div class="card" id="card-gps">
+          <span class="lbl">GPS</span>
+          <span class="val" id="val-gps">FIX YOK</span>
+          <span class="sub" id="val-gps-sub">—</span>
+        </div>
+        <div class="card" id="card-sonar">
+          <span class="lbl">SONAR MESAFE</span>
+          <span class="val" id="val-sonar">— <small>mm</small></span>
+          <span class="sub">Şamandıra tespiti</span>
+        </div>
       </div>
 
       <!-- 6 Thruster Output Monitor Bars -->
       <div class="thruster-monitor">
-        <div class="card-title">MOTOR İTKİ DAĞILIMI (6 MOTOR)</div>
+        <div class="card-title">MOTOR İTKİ DAĞILIMI
+          <span class="tm-sub">komut % / ESC darbesi µs</span>
+        </div>
         <div class="thruster-grid">
           <div class="t-bar-item">
             <span class="t-name">V_FL (Ön-Sol)</span>
             <div class="bar-bg"><div class="bar-fill" id="bar-vfl"></div></div>
             <span class="t-val" id="lbl-vfl">%0</span>
+            <span class="t-us" id="us-vfl">—</span>
           </div>
           <div class="t-bar-item">
             <span class="t-name">V_FR (Ön-Sağ)</span>
             <div class="bar-bg"><div class="bar-fill" id="bar-vfr"></div></div>
             <span class="t-val" id="lbl-vfr">%0</span>
+            <span class="t-us" id="us-vfr">—</span>
           </div>
           <div class="t-bar-item">
             <span class="t-name">V_RL (Arka-Sol)</span>
             <div class="bar-bg"><div class="bar-fill" id="bar-vrl"></div></div>
             <span class="t-val" id="lbl-vrl">%0</span>
+            <span class="t-us" id="us-vrl">—</span>
           </div>
           <div class="t-bar-item">
             <span class="t-name">V_RR (Arka-Sağ)</span>
             <div class="bar-bg"><div class="bar-fill" id="bar-vrr"></div></div>
             <span class="t-val" id="lbl-vrr">%0</span>
+            <span class="t-us" id="us-vrr">—</span>
           </div>
           <div class="t-bar-item">
             <span class="t-name">H_L (Sol Yatay)</span>
             <div class="bar-bg"><div class="bar-fill" id="bar-hl"></div></div>
             <span class="t-val" id="lbl-hl">%0</span>
+            <span class="t-us" id="us-hl">—</span>
           </div>
           <div class="t-bar-item">
             <span class="t-name">H_R (Sağ Yatay)</span>
             <div class="bar-bg"><div class="bar-fill" id="bar-hr"></div></div>
             <span class="t-val" id="lbl-hr">%0</span>
+            <span class="t-us" id="us-hr">—</span>
           </div>
         </div>
       </div>
@@ -145,28 +180,196 @@
     <!-- Right Column: Mission Control & PID Tuner -->
     <section class="panel control-panel">
       <div class="panel-header">
-        <h2>GÖREV & KALİBRASYON KONTROLLERİ</h2>
+        <h2>KONTROL İSTASYONU</h2>
       </div>
 
-      <!-- Mission Launcher Card -->
-      <div class="card-section">
-        <div class="card-title">OTONOM GÖREV SEÇİMİ</div>
-        <div class="btn-group-vertical">
-          <button class="btn btn-sec" id="btn-m-video">GÖSTERİM VİDEOSU GÖREVİ (VIDEO DEMO)</button>
-          <button class="btn btn-sec" id="btn-m-line">GÖREV 1: HAT TAKİBİ & BORU HİZALAMA</button>
-          <button class="btn btn-sec" id="btn-m-nav">GÖREV 2: OTONOM NAVİGASYON (GPS+SONAR)</button>
+      <!-- ══ KONTROL MODU — hedef belirlemenin çalışması buna bağlı ══ -->
+      <div class="card-section mode-section">
+        <div class="card-title">KONTROL MODU
+          <span class="mode-owner" id="mode-owner">hedef sahibi: görev</span>
+        </div>
+        <div class="mode-grid">
+          <button class="btn btn-mode" data-mode="AUTO"   id="mode-AUTO">AUTO</button>
+          <button class="btn btn-mode" data-mode="HOLD"   id="mode-HOLD">HOLD</button>
+          <button class="btn btn-mode" data-mode="HOVER"  id="mode-HOVER">HOVER</button>
+          <button class="btn btn-mode" data-mode="RATE"   id="mode-RATE">RATE</button>
+          <button class="btn btn-mode" data-mode="TELEOP" id="mode-TELEOP">TELEOP</button>
+        </div>
+        <div class="mode-hint" id="mode-hint">
+          AUTO: hedefleri görev yönetir. Kendi hedefini vermek için <b>HOLD</b>'a geç.
         </div>
       </div>
 
-      <!-- Mini ROV Servo Winch Card -->
-      <div class="card-section">
-        <div class="card-title">MINI ROV VİNÇ KONTROLÜ (CLS3860MED)</div>
-        <div class="btn-group-horizontal">
-          <button class="btn btn-act" id="btn-winch-deploy">VİNÇ BIRAK (DEPLOY)</button>
-          <button class="btn btn-act" id="btn-winch-retract">VİNÇ ÇEK (RETRACT)</button>
-        </div>
-        <button class="btn btn-sub" id="btn-minrov-back" style="margin-top: 6px;">MINI ROV GERİ GELDİ BİLDİR (GÖREV 1 DEVAM)</button>
+      <!-- Sekmeler -->
+      <div class="tabs">
+        <button class="tab active" data-tab="tab-target">HEDEF</button>
+        <button class="tab" data-tab="tab-pid">PID</button>
+        <button class="tab" data-tab="tab-health">SAĞLIK</button>
+        <button class="tab" data-tab="tab-mission">GÖREV</button>
       </div>
+
+      <!-- ══════════════ SEKME: HEDEF ══════════════ -->
+      <div class="tab-page active" id="tab-target">
+
+        <div class="card-section">
+          <div class="card-title">DERİNLİK HEDEFİ</div>
+          <div class="target-row">
+            <input type="number" id="tgt-depth" step="0.05" min="0" placeholder="metre">
+            <button class="btn btn-act" id="btn-tgt-depth">UYGULA</button>
+          </div>
+          <div class="nudge-row">
+            <button class="btn btn-nudge" data-depth="-0.5">−50 cm</button>
+            <button class="btn btn-nudge" data-depth="-0.1">−10 cm</button>
+            <button class="btn btn-nudge" data-depth="0.1">+10 cm</button>
+            <button class="btn btn-nudge" data-depth="0.5">+50 cm</button>
+          </div>
+          <div class="target-live">
+            şu an: <b id="live-depth">0.00</b> m &nbsp;→&nbsp; hedef: <b id="live-tgt-depth">—</b> m
+            <button class="btn btn-mini" id="btn-clear-depth">BIRAK</button>
+          </div>
+        </div>
+
+        <div class="card-section">
+          <div class="card-title">YÖN (HEADING) HEDEFİ</div>
+          <div class="target-row">
+            <input type="number" id="tgt-heading" step="1" placeholder="derece 0-360">
+            <button class="btn btn-act" id="btn-tgt-heading">UYGULA</button>
+          </div>
+          <div class="nudge-row">
+            <button class="btn btn-nudge" data-hdg="-90">−90°</button>
+            <button class="btn btn-nudge" data-hdg="-10">−10°</button>
+            <button class="btn btn-nudge" data-hdg="10">+10°</button>
+            <button class="btn btn-nudge" data-hdg="90">+90°</button>
+          </div>
+          <div class="target-live">
+            şu an: <b id="live-heading">0.0</b>° &nbsp;→&nbsp; hedef: <b id="live-tgt-heading">—</b>°
+            <button class="btn btn-mini" id="btn-clear-heading">BIRAK</button>
+          </div>
+          <div class="target-row sub-row">
+            <label>Yön modu</label>
+            <select id="sel-heading-mode">
+              <option value="cruise">cruise — düz seyir (yavaş, nazik)</option>
+              <option value="turn">turn — yerinde dönüş (hızlı)</option>
+              <option value="circle">circle — daire (tam yetki)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="card-section">
+          <div class="card-title">İLERİ GAZ / DÖNÜŞ HIZI</div>
+          <div class="slider-row">
+            <label>Surge</label>
+            <input type="range" id="sld-surge" min="-1" max="1" step="0.05" value="0">
+            <span class="sv" id="sv-surge">0.00</span>
+          </div>
+          <div class="target-row sub-row">
+            <label title="RATE modunda kullanılır — daire çapı = 2·hız/dönüş hızı">Dönüş °/s</label>
+            <input type="number" id="tgt-rate" step="1" placeholder="örn. 24">
+            <button class="btn btn-act" id="btn-tgt-rate">UYGULA</button>
+          </div>
+        </div>
+
+        <div class="card-section">
+          <div class="card-title">DERİNLİK KALİBRASYONU</div>
+          <div class="slider-row">
+            <label title="HOVER modunda sabit dikey gaz. Araç ne çıkıp ne iniyorsa FF_HOVER budur.">Hover</label>
+            <input type="range" id="sld-hover" min="-0.6" max="0.6" step="0.01" value="0">
+            <span class="sv" id="sv-hover">0.00</span>
+          </div>
+          <div class="target-row sub-row">
+            <label title="Asılı kalma gücü — PID'in üstüne eklenen sabit itki">FF</label>
+            <input type="number" id="tgt-ff" step="0.01" placeholder="0.00">
+            <button class="btn btn-act" id="btn-tgt-ff">UYGULA</button>
+          </div>
+          <button class="btn btn-sub" id="btn-zero-depth">YÜZEY REFERANSINI SIFIRLA</button>
+        </div>
+
+        <div class="card-section">
+          <div class="card-title">GÜÇ SINIRI <span class="warn-tag">dikkatli</span></div>
+          <div class="slider-row">
+            <label title="Tüm motor çıkışını ölçekler. İlk havuz testlerinde düşük tut.">Thrust</label>
+            <input type="range" id="sld-thrust" min="0.05" max="1" step="0.05" value="1">
+            <span class="sv" id="sv-thrust">1.00</span>
+          </div>
+          <div class="slider-row">
+            <label title="Motor komutunun saniyede değişebileceği maksimum miktar">Slew</label>
+            <input type="range" id="sld-slew" min="0.2" max="10" step="0.2" value="2">
+            <span class="sv" id="sv-slew">2.0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════ SEKME: SAĞLIK ══════════════ -->
+      <div class="tab-page" id="tab-health">
+        <div class="card-section">
+          <div class="card-title">SENSÖR SAĞLIĞI <span class="hint">watchdog görevi bundan iptal eder</span></div>
+          <div class="health-grid">
+            <div class="hrow"><span>IMU frekans</span><b id="h-imu-hz">—</b><i id="h-imu-bar"></i></div>
+            <div class="hrow"><span>IMU veri yaşı</span><b id="h-imu-age">—</b><i></i></div>
+            <div class="hrow"><span>IMU hata</span><b id="h-imu-err">—</b><i></i></div>
+            <div class="hrow"><span>Derinlik frekans</span><b id="h-dep-hz">—</b><i id="h-dep-bar"></i></div>
+            <div class="hrow"><span>Derinlik veri yaşı</span><b id="h-dep-age">—</b><i></i></div>
+            <div class="hrow"><span>Derinlik hata</span><b id="h-dep-err">—</b><i></i></div>
+          </div>
+          <div class="watchdog" id="watchdog">WATCHDOG: —</div>
+        </div>
+
+        <div class="card-section">
+          <div class="card-title">KONTROL DÖNGÜSÜ <span class="hint">H1 kriteri: ≥30 Hz</span></div>
+          <div class="health-grid">
+            <div class="hrow"><span>Ölçülen</span><b id="l-hz">—</b><i></i></div>
+            <div class="hrow"><span>Hedef</span><b id="l-target">—</b><i></i></div>
+            <div class="hrow"><span>En kötü adım</span><b id="l-worst">—</b><i></i></div>
+            <div class="hrow"><span>Takılma (&gt;1s)</span><b id="l-stalls">—</b><i></i></div>
+            <div class="hrow"><span>Toplam adım</span><b id="l-count">—</b><i></i></div>
+            <div class="hrow"><span>Çalışma süresi</span><b id="l-uptime">—</b><i></i></div>
+          </div>
+          <div class="watchdog" id="loop-verdict">DÖNGÜ: —</div>
+        </div>
+
+        <div class="card-section">
+          <div class="card-title">HAM SENSÖR</div>
+          <div class="health-grid">
+            <div class="hrow"><span>Jiro X / Y / Z</span><b id="h-gyro">—</b><i></i></div>
+            <div class="hrow"><span>Yüzey referansı</span><b id="h-surface">—</b><i></i></div>
+            <div class="hrow"><span>Basınç</span><b id="h-press">—</b><i></i></div>
+            <div class="hrow"><span>Sıcaklık</span><b id="h-temp">—</b><i></i></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════ SEKME: GÖREV ══════════════ -->
+      <div class="tab-page" id="tab-mission">
+        <div class="card-section">
+          <div class="card-title">OTONOM GÖREV</div>
+          <div class="btn-group-vertical">
+            <button class="btn btn-sec" id="btn-m-video" data-mission="video">GÖSTERİM VİDEOSU GÖREVİ</button>
+            <button class="btn btn-sec" id="btn-m-line" data-mission="line">GÖREV 1: HAT TAKİBİ &amp; BORU HİZALAMA</button>
+            <button class="btn btn-sec" id="btn-m-nav" data-mission="nav">GÖREV 2: OTONOM NAVİGASYON</button>
+          </div>
+          <button class="btn btn-abort" id="btn-mission-stop" style="width:100%;margin-top:6px;">GÖREVİ DURDUR (HOLD'a geç)</button>
+          <div class="mission-note" id="mission-note">Görev başlatmak için önce ARM et.</div>
+        </div>
+
+        <div class="card-section">
+          <div class="card-title">GÖREV İÇ DURUMU</div>
+          <div class="health-grid" id="mission-info">
+            <div class="hrow"><span>—</span><b>—</b><i></i></div>
+          </div>
+        </div>
+
+        <div class="card-section">
+          <div class="card-title">MINI ROV VİNÇ (CLS3860MED)</div>
+          <div class="btn-group-horizontal">
+            <button class="btn btn-act" id="btn-winch-deploy">VİNÇ BIRAK</button>
+            <button class="btn btn-act" id="btn-winch-retract">VİNÇ ÇEK</button>
+          </div>
+          <button class="btn btn-sub" id="btn-minrov-back" style="margin-top: 6px;">MINI ROV GERİ GELDİ BİLDİR</button>
+        </div>
+      </div>
+
+      <!-- ══════════════ SEKME: PID ══════════════ -->
+      <div class="tab-page" id="tab-pid">
 
       <!-- PID Tuner Card -->
       <div class="card-section pid-section">
@@ -239,14 +442,42 @@
           <button class="btn btn-act" id="btn-update-pid">GÜNCELLE</button>
           <button class="btn btn-sub" id="btn-reset-pid">I SIFIRLA</button>
         </div>
+      </div>
 
-        <!-- Basamak cevabı testi -->
+      <!-- ══ ADIM CEVABI TESTİ & ANALİZ ══ -->
+      <div class="card-section step-section">
+        <div class="card-title">ADIM CEVABI TESTİ
+          <span class="rec-dot" id="rec-dot">KAYIT</span>
+        </div>
+
         <div class="pid-step-test">
           <label>Hedef</label>
           <input type="number" id="pid-setpoint" step="0.1" value="1.5">
-          <button class="btn btn-sec" id="btn-set-target">HEDEF UYGULA</button>
+          <button class="btn btn-sec" id="btn-set-target">ADIM VER</button>
+        </div>
+
+        <div class="pid-chart-wrap">
+          <canvas id="step-chart" width="300" height="120"></canvas>
+          <div class="chart-legend">
+            <span class="lg lg-meas">— ölçülen</span>
+            <span class="lg lg-tgt">— hedef</span>
+          </div>
+        </div>
+
+        <button class="btn btn-act" id="btn-analyze">SONUCU ANALİZ ET</button>
+
+        <div class="analysis" id="analysis" style="display:none;">
+          <div class="an-grid">
+            <div class="an"><span>Aşım</span><b id="an-asim">—</b></div>
+            <div class="an"><span>Yerleşme %5</span><b id="an-yerlesme">—</b></div>
+            <div class="an"><span>Kalıcı hata</span><b id="an-kalici">—</b></div>
+            <div class="an"><span>Gürültü RMS</span><b id="an-rms">—</b></div>
+          </div>
+          <ul class="an-advice" id="an-advice"></ul>
         </div>
       </div>
+
+      </div><!-- /tab-pid -->
 
       <!-- Rolling Log Console Widget -->
       <div class="card-section console-section">

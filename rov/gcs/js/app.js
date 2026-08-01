@@ -54,6 +54,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const arHeading = $('ar-heading');
 
   const consoleBox = $('console-box');
+  const badgeMode = $('badge-mode');
+  const badgeHealth = $('badge-health');
+  const badgeLoop = $('badge-loop');
 
   // Thruster Bar Elements
   const thrusters = {
@@ -79,6 +82,10 @@ document.addEventListener('DOMContentLoaded', () => {
       updateUI(data);
       hud.update(data);
       pidMonitor.update(data);
+      modePanel.update(data);
+      targetPanel.update(data);
+      healthPanel.update(data);
+      stepPanel.update(data);
 
       if (!connected) {
         connected = true;
@@ -145,7 +152,33 @@ document.addEventListener('DOMContentLoaded', () => {
     if (num(data.pressure_mbar)) valPressure.innerHTML = `${Math.round(data.pressure_mbar)} <small>mbar</small>`;
     if (num(data.temp_c)) valTemp.textContent = data.temp_c.toFixed(1);
 
-    // Thrusters
+    // Dikey hiz: dalis/cikis hizini gormek havuzda cok ise yarar
+    if (num(data.depth_rate)) {
+      const dr = data.depth_rate;
+      set('val-depth-rate', `${dr >= 0 ? '+' : ''}${dr.toFixed(2)} <small>m/s</small>`, true);
+    }
+    if (num(data.depth_error)) set('val-depth-err', data.depth_error.toFixed(3));
+    if (num(data.yaw_rate)) set('val-yawrate', `${data.yaw_rate.toFixed(1)} <small>°/s</small>`, true);
+    if (data.heading_mode) set('val-hmode', data.heading_mode);
+
+    // Gorev 2 sensorleri — sadece gercekten veri varsa goster
+    const navCards = document.getElementById('nav-cards');
+    if (navCards) {
+      const hasNav = (data.gps !== undefined) || (data.sonar_mm !== undefined);
+      navCards.style.display = hasNav ? 'grid' : 'none';
+      if (data.gps) {
+        set('val-gps', data.gps.fix ? 'FIX VAR' : 'FIX YOK');
+        set('val-gps-sub', data.gps.fix
+          ? `${data.gps.lat.toFixed(5)}, ${data.gps.lon.toFixed(5)}`
+          : 'uydu bekleniyor');
+      }
+      if (data.sonar_mm !== undefined) {
+        set('val-sonar', data.sonar_mm == null ? '— <small>mm</small>'
+                                               : `${data.sonar_mm} <small>mm</small>`, true);
+      }
+    }
+
+    // Thrusters — normalize komut + gercekten ESC'ye giden PWM darbesi
     if (data.thrusters) {
       for (const [key, val] of Object.entries(data.thrusters)) {
         const t = thrusters[key];
@@ -156,6 +189,19 @@ document.addEventListener('DOMContentLoaded', () => {
         t.fill.style.background = val < 0 ? '#ff0055' : '#00f3ff';
       }
     }
+    if (data.thruster_us) {
+      for (const [key, us] of Object.entries(data.thruster_us)) {
+        const el = document.getElementById('us-' + key.toLowerCase().replace('_', ''));
+        if (el) el.textContent = (us == null) ? '—' : `${us} µs`;
+      }
+    }
+  }
+
+  /** Kisa yardimci: id'li elemanin metnini/HTML'ini yaz (yoksa sessiz gec). */
+  function set(id, value, html) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (html) el.innerHTML = value; else el.textContent = value;
   }
 
   // ── 2. Komut Gönderme Yardımcısı ─────────────────────────────────────────
@@ -178,6 +224,354 @@ document.addEventListener('DOMContentLoaded', () => {
       return { ok: false, error: e.message };
     }
   }
+
+  // ── 3a. SEKMELER ─────────────────────────────────────────────────────────
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      const page = document.getElementById(tab.dataset.tab);
+      if (page) page.classList.add('active');
+    });
+  });
+
+  // ── 3b. KONTROL MODU ─────────────────────────────────────────────────────
+  //
+  // Hedef belirlemenin calismamasinin sebebi buydu: gorevin step() metodu
+  // 50 Hz'de kendi hedefini yaziyordu. Mod, hedefin SAHIBINI belirler.
+  const modePanel = (() => {
+    const hint = $('mode-hint');
+    const owner = $('mode-owner');
+    const HINTS = {
+      AUTO:   ['hedef sahibi: görev',
+               'AUTO: hedefleri görev yönetir. Kendi hedefini vermek için <b>HOLD</b>\'a geç.'],
+      HOLD:   ['hedef sahibi: sen',
+               'HOLD: görev duraklatıldı. Verdiğin derinlik/yön hedefini PID tutar.'],
+      HOVER:  ['derinlik PID kapalı',
+               'HOVER: sabit dikey gaz. Araç ne çıkıp ne iniyorsa o değer <b>FF_HOVER</b>\'dır.'],
+      RATE:   ['dönüş hızı hedefi',
+               'RATE: sabit dönüş hızı. Daire çapı = 2·ileri hız / dönüş hızı.'],
+      TELEOP: ['doğrudan sürüş',
+               'TELEOP: WASD/IJKL eksenleri doğrudan motorlara gidiyor. PID devrede değil.'],
+    };
+    let currentMode = null;
+
+    document.querySelectorAll('.btn-mode').forEach(btn => {
+      btn.addEventListener('click', () => sendCommand('set_mode', { mode: btn.dataset.mode }));
+    });
+
+    function update(data) {
+      const m = data.mode;
+      if (!m || m === currentMode) return;
+      currentMode = m;
+      document.querySelectorAll('.btn-mode').forEach(b =>
+        b.classList.toggle('active', b.dataset.mode === m));
+      if (badgeMode) badgeMode.textContent = 'MOD: ' + m;
+      const h = HINTS[m];
+      if (h) {
+        if (owner) owner.textContent = h[0];
+        if (hint) hint.innerHTML = h[1];
+      }
+    }
+    return { update, get: () => currentMode };
+  })();
+
+  // ── 3c. HEDEF PANELİ ─────────────────────────────────────────────────────
+  const targetPanel = (() => {
+    const sldSurge = $('sld-surge'), sldHover = $('sld-hover');
+    const sldThrust = $('sld-thrust'), sldSlew = $('sld-slew');
+    const selHmode = $('sel-heading-mode');
+    let userTouching = null;    // kaydirak surukleniyorsa telemetriyle ezme
+
+    /** Kaydirak: surukleme bitince komut gonder (her pikselde istek atma). */
+    function slider(el, svId, cmd, key, fmt) {
+      if (!el) return;
+      const sv = document.getElementById(svId);
+      const show = () => { if (sv) sv.textContent = fmt(parseFloat(el.value)); };
+      el.addEventListener('input', () => { userTouching = el; show(); });
+      el.addEventListener('change', () => {
+        sendCommand(cmd, { [key]: parseFloat(el.value) });
+        setTimeout(() => { if (userTouching === el) userTouching = null; }, 400);
+      });
+      show();
+    }
+
+    slider(sldSurge, 'sv-surge', 'set_surge', 'surge', v => v.toFixed(2));
+    slider(sldHover, 'sv-hover', 'set_hover', 'hover', v => v.toFixed(2));
+    slider(sldThrust, 'sv-thrust', 'set_limits', 'thrust_limit', v => v.toFixed(2));
+    slider(sldSlew, 'sv-slew', 'set_limits', 'slew_rate', v => v.toFixed(1));
+
+    // Mutlak hedefler
+    on('btn-tgt-depth', 'click', () => {
+      const v = parseFloat(($('tgt-depth') || {}).value);
+      if (!isFinite(v)) return logConsole('Geçersiz derinlik', 'warn');
+      sendCommand('set_target', { depth: v });
+    });
+    on('btn-tgt-heading', 'click', () => {
+      const v = parseFloat(($('tgt-heading') || {}).value);
+      if (!isFinite(v)) return logConsole('Geçersiz yön', 'warn');
+      sendCommand('set_target', { heading: v });
+    });
+
+    // Bagil hedefler (+10 cm, -90 derece ...) — havuzda en cok kullanilan
+    document.querySelectorAll('[data-depth]').forEach(b =>
+      b.addEventListener('click', () =>
+        sendCommand('set_target', { depth_rel: parseFloat(b.dataset.depth) })));
+    document.querySelectorAll('[data-hdg]').forEach(b =>
+      b.addEventListener('click', () =>
+        sendCommand('set_target', { heading_rel: parseFloat(b.dataset.hdg) })));
+
+    on('btn-clear-depth', 'click', () => sendCommand('clear_target', { axis: 'depth' }));
+    on('btn-clear-heading', 'click', () => sendCommand('clear_target', { axis: 'heading' }));
+
+    on('btn-tgt-rate', 'click', () => {
+      const v = parseFloat(($('tgt-rate') || {}).value);
+      if (!isFinite(v)) return logConsole('Geçersiz dönüş hızı', 'warn');
+      sendCommand('set_rate', { rate: v });
+    });
+    on('btn-tgt-ff', 'click', () => {
+      const v = parseFloat(($('tgt-ff') || {}).value);
+      if (!isFinite(v)) return logConsole('Geçersiz FF', 'warn');
+      sendCommand('set_ff', { ff: v });
+    });
+    on('btn-zero-depth', 'click', () => sendCommand('zero_depth'));
+
+    if (selHmode) {
+      selHmode.addEventListener('change', () =>
+        sendCommand('heading_mode', { mode: selHmode.value }));
+    }
+
+    function update(data) {
+      set('live-depth', num(data.depth) ? data.depth.toFixed(2) : '—');
+      set('live-heading', num(data.heading) ? data.heading.toFixed(1) : '—');
+      set('live-tgt-depth', data.depth_locked ? data.target_depth.toFixed(2) : '—');
+      set('live-tgt-heading', data.heading_locked ? data.target_heading.toFixed(1) : '—');
+
+      if (selHmode && data.heading_mode && selHmode.value !== data.heading_mode
+          && document.activeElement !== selHmode) {
+        selHmode.value = data.heading_mode;
+      }
+      // Cihazdaki gercek degerleri kaydiraklara yansit (kullanici tutmuyorsa)
+      syncSlider(sldSurge, 'sv-surge', data.surge, v => v.toFixed(2));
+      syncSlider(sldHover, 'sv-hover', data.hover_cmd, v => v.toFixed(2));
+      if (data.limits) {
+        syncSlider(sldThrust, 'sv-thrust', data.limits.thrust_limit, v => v.toFixed(2));
+        syncSlider(sldSlew, 'sv-slew', data.limits.slew_rate, v => v.toFixed(1));
+      }
+    }
+
+    function syncSlider(el, svId, value, fmt) {
+      if (!el || !num(value) || userTouching === el) return;
+      if (Math.abs(parseFloat(el.value) - value) < 1e-6) return;
+      el.value = value;
+      const sv = document.getElementById(svId);
+      if (sv) sv.textContent = fmt(value);
+    }
+
+    return { update };
+  })();
+
+  // ── 3d. SAĞLIK PANELİ ────────────────────────────────────────────────────
+  //
+  // Watchdog gorevi iptal ediyordu ama operator NEDEN iptal oldugunu
+  // goremiyordu. Bu panel sensor thread'lerinin gercek durumunu gosterir.
+  const healthPanel = (() => {
+    function row(id, text, state, pct) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = text;
+      const parent = el.closest('.hrow');
+      if (parent) {
+        parent.classList.toggle('bad', state === 'bad');
+        parent.classList.toggle('warn', state === 'warn');
+        const bar = parent.querySelector('i');
+        if (bar && pct !== undefined) bar.style.setProperty('--pct', Math.min(100, pct) + '%');
+      }
+    }
+
+    function update(data) {
+      const h = data.health;
+      if (h) {
+        row('h-imu-hz', `${h.imu_hz.toFixed(0)} Hz`,
+            h.imu_hz < 40 ? 'bad' : (h.imu_hz < 80 ? 'warn' : ''), h.imu_hz);
+        row('h-imu-age', `${(h.imu_age * 1000).toFixed(0)} ms`,
+            h.imu_age > h.stale_s ? 'bad' : '');
+        row('h-imu-err', h.imu_errors, h.imu_errors > 0 ? 'warn' : '');
+        row('h-dep-hz', `${h.depth_hz.toFixed(0)} Hz`,
+            h.depth_hz < 8 ? 'bad' : (h.depth_hz < 15 ? 'warn' : ''), h.depth_hz * 5);
+        row('h-dep-age', `${(h.depth_age * 1000).toFixed(0)} ms`,
+            h.depth_age > h.stale_s ? 'bad' : '');
+        row('h-dep-err', h.depth_errors, h.depth_errors > 0 ? 'warn' : '');
+
+        const wd = document.getElementById('watchdog');
+        if (wd) {
+          wd.textContent = h.healthy
+            ? `WATCHDOG: VERİ TAZE (eşik ${h.stale_s}s)`
+            : 'WATCHDOG: VERİ BAYAT — GÖREV İPTAL EDİLİR!';
+          wd.className = 'watchdog' + (h.healthy ? '' : ' bad');
+        }
+        if (badgeHealth) {
+          badgeHealth.className = 'badge' + (h.healthy ? ' online' : '');
+          badgeHealth.querySelector('.lbl').textContent =
+            h.healthy ? 'SENSÖR TAZE' : 'SENSÖR BAYAT!';
+        }
+      }
+
+      const l = data.loop;
+      if (l) {
+        const bad = l.hz < 30, warn = l.warn_hz && l.hz < l.warn_hz;
+        row('l-hz', `${l.hz.toFixed(1)} Hz`, bad ? 'bad' : (warn ? 'warn' : ''),
+            (l.hz / l.target_hz) * 100);
+        row('l-target', `${l.target_hz.toFixed(0)} Hz`, '');
+        row('l-worst', `${l.worst_dt_ms.toFixed(0)} ms`, l.worst_dt_ms > 100 ? 'warn' : '');
+        row('l-stalls', l.stalls, l.stalls > 0 ? 'bad' : '');
+        row('l-count', l.count, '');
+        const v = document.getElementById('loop-verdict');
+        if (v) {
+          v.textContent = bad
+            ? `H1 KABUL KRİTERİ KALDI (${l.hz.toFixed(1)} Hz < 30 Hz)`
+            : `H1 KABUL KRİTERİ GEÇTİ (${l.hz.toFixed(1)} Hz ≥ 30 Hz)`;
+          v.className = 'watchdog' + (bad ? ' bad' : '');
+        }
+        if (badgeLoop) {
+          badgeLoop.className = 'badge' + (bad ? '' : ' online');
+          badgeLoop.querySelector('.lbl').textContent = `${l.hz.toFixed(0)} Hz`;
+        }
+      }
+      if (num(data.uptime_s)) {
+        const s = Math.floor(data.uptime_s);
+        row('l-uptime', `${Math.floor(s / 60)}dk ${s % 60}sn`, '');
+      }
+
+      if (data.gyro) row('h-gyro', data.gyro.map(g => g.toFixed(1)).join(' / '), '');
+      if (num(data.surface_ref_mbar)) row('h-surface', `${data.surface_ref_mbar.toFixed(2)} mbar`, '');
+      if (num(data.pressure_mbar)) row('h-press', `${data.pressure_mbar.toFixed(1)} mbar`, '');
+      if (num(data.temp_c)) row('h-temp', `${data.temp_c.toFixed(1)} °C`, '');
+
+      // Görev iç durumu
+      const mi = document.getElementById('mission-info');
+      if (mi && data.mission_info) {
+        mi.innerHTML = Object.entries(data.mission_info)
+          .map(([k, v]) => `<div class="hrow"><span>${k}</span><b>${v}</b><i></i></div>`)
+          .join('');
+      }
+    }
+    return { update };
+  })();
+
+  // ── 3e. ADIM CEVABI TESTİ & ANALİZ ───────────────────────────────────────
+  const stepPanel = (() => {
+    const canvas = $('step-chart');
+    const ctx = canvas ? canvas.getContext('2d') : null;
+    const recDot = $('rec-dot');
+    let series = [];
+    let lastFetch = 0;
+
+    on('btn-analyze', 'click', async () => {
+      const r = await sendCommand('analyze', {}, true);
+      const box = document.getElementById('analysis');
+      if (!r.ok) { logConsole(r.error || 'Analiz başarısız', 'warn'); return; }
+      if (box) box.style.display = 'flex';
+
+      const u = r.unit || '';
+      setAn('an-asim', `${r.asim_pct.toFixed(1)} % (${r.asim_abs} ${u})`,
+            r.asim_pct < 10 ? 'good' : (r.asim_pct > 25 ? 'bad' : ''));
+      setAn('an-yerlesme', r.yerlesme_s === null ? 'oluşmadı' : `${r.yerlesme_s} s`,
+            r.yerlesme_s === null ? 'bad' : (r.yerlesme_s < 6 ? 'good' : ''));
+      setAn('an-kalici', `${r.kalici} ${u}`, Math.abs(r.kalici) < 0.05 ? 'good' : 'bad');
+      setAn('an-rms', `${r.rms} ${u}`, '');
+
+      const ul = document.getElementById('an-advice');
+      if (ul) ul.innerHTML = (r.oneri || []).map(x => `<li>${x}</li>`).join('');
+      logConsole(`Analiz: aşım %${r.asim_pct.toFixed(1)}, yerleşme ` +
+                 `${r.yerlesme_s === null ? '—' : r.yerlesme_s + 's'}, ` +
+                 `kalıcı ${r.kalici}${u}`, 'info');
+    });
+
+    function setAn(id, text, cls) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = text;
+      el.parentElement.className = 'an' + (cls ? ' ' + cls : '');
+    }
+
+    async function update(data) {
+      const rec = !!data.step_test;
+      if (recDot) recDot.classList.toggle('on', rec);
+
+      // Egriyi 4 Hz'de cek — 20 Hz telemetriyle birlikte cekmeye gerek yok
+      const now = Date.now();
+      if (now - lastFetch > 250) {
+        lastFetch = now;
+        try {
+          const r = await fetch('/api/step', { cache: 'no-store' });
+          const j = await r.json();
+          series = j.series || [];
+        } catch (e) { /* yoksay */ }
+      }
+      draw();
+    }
+
+    function draw() {
+      if (!ctx || !canvas) return;
+      const W = canvas.width, H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+      ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+      ctx.lineWidth = 1;
+      for (let i = 1; i < 4; i++) {
+        const y = (H / 4) * i;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+      }
+      if (series.length < 2) {
+        ctx.fillStyle = 'rgba(255,255,255,0.25)';
+        ctx.font = '11px monospace';
+        ctx.fillText('adım testi yok — bir hedef ver', 12, H / 2);
+        return;
+      }
+
+      // Olculen ve hedef AYNI olcekte cizilir; yoksa asim gozle gorulmez.
+      let lo = Infinity, hi = -Infinity;
+      for (const [, v, tg] of series) {
+        lo = Math.min(lo, v, tg); hi = Math.max(hi, v, tg);
+      }
+      const pad = (hi - lo) * 0.15 || 0.5;
+      lo -= pad; hi += pad;
+      const tMax = series[series.length - 1][0] || 1;
+      const X = t => (t / tMax) * (W - 2) + 1;
+      const Y = v => H - ((v - lo) / (hi - lo)) * (H - 6) - 3;
+
+      // hedef (yesil, kesik)
+      ctx.strokeStyle = '#00ff66';
+      ctx.setLineDash([4, 3]);
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      series.forEach(([t, , tg], i) => i ? ctx.lineTo(X(t), Y(tg)) : ctx.moveTo(X(t), Y(tg)));
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // olculen (cyan)
+      ctx.strokeStyle = '#00f3ff';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      series.forEach(([t, v], i) => i ? ctx.lineTo(X(t), Y(v)) : ctx.moveTo(X(t), Y(v)));
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.font = '9px monospace';
+      ctx.fillText(`${tMax.toFixed(1)}s`, W - 30, H - 3);
+      ctx.fillText(hi.toFixed(2), 3, 10);
+      ctx.fillText(lo.toFixed(2), 3, H - 3);
+    }
+    return { update };
+  })();
+
+  // ── 3f. GÖREV BAŞLAT / DURDUR ────────────────────────────────────────────
+  document.querySelectorAll('[data-mission]').forEach(b => {
+    b.addEventListener('click', () =>
+      sendCommand('mission_start', { mission: b.dataset.mission }));
+  });
+  on('btn-mission-stop', 'click', () => sendCommand('mission_stop'));
 
   // ── 3. CANLI PID İZLEME & AYAR ───────────────────────────────────────────
   const pidMonitor = (() => {
@@ -389,11 +783,20 @@ document.addEventListener('DOMContentLoaded', () => {
       h.err.length = 0; h.out.length = 0;
     });
 
-    on('btn-set-target', 'click', () => {
+    // Adim girdisi ver: hedefi degistirir VE kaydi baslatir.
+    // Not: AUTO modunda sunucu bunu reddeder (gorev hedefi eziyor) — hata
+    // mesaji konsola duser ve kullaniciya HOLD'a gecmesi soylenir.
+    on('btn-set-target', 'click', async () => {
       const v = parseFloat(setpointInput ? setpointInput.value : NaN);
       if (!isFinite(v)) { logConsole('Geçersiz hedef', 'warn'); return; }
-      const key = current() === 'heading' ? 'heading' : 'depth';
-      sendCommand('set_target', { [key]: v });
+      const name = current();
+      if (name === 'roll' || name === 'pitch') {
+        logConsole('Roll/Pitch hedefi her zaman 0°\'dir — adım testi derinlik ' +
+                   'ya da heading üzerinden yapılır.', 'warn');
+        return;
+      }
+      const key = name === 'heading' ? 'heading' : 'depth';
+      await sendCommand('set_target', { [key]: v });
     });
 
     return { update, loadGains, setSync };
@@ -410,10 +813,8 @@ document.addEventListener('DOMContentLoaded', () => {
   on('btn-winch-retract', 'click', () => sendCommand('winch_retract'));
   on('btn-minrov-back', 'click', () => sendCommand('minrov_back'));
 
-  // Görev Butonları
-  on('btn-m-video', 'click', () => logConsole('Video gösterimi görevi seçildi', 'info'));
-  on('btn-m-line', 'click', () => logConsole('Görev 1 (Hat Takibi) seçildi', 'info'));
-  on('btn-m-nav', 'click', () => logConsole('Görev 2 (Navigasyon) seçildi', 'info'));
+  // NOT: Görev butonları artık gerçekten görev başlatıyor (bölüm 3f,
+  // data-mission). Eskiden sadece konsola yazı yazıyorlardı.
 
   // AR Overlay Toggle
   on('chk-ar-overlay', 'change', (e) => {
