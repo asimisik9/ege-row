@@ -16,7 +16,7 @@ import socket
 import struct
 import threading
 import time
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
 try:
@@ -284,7 +284,7 @@ class WebGCS:
         os.makedirs(GCS_DIR, exist_ok=True)
 
         try:
-            self._server = HTTPServer(("0.0.0.0", self.port), GCSHTTPRequestHandler)
+            self._server = ThreadingHTTPServer(("0.0.0.0", self.port), GCSHTTPRequestHandler)
         except OSError as e:
             print(f"[GCS] Port {self.port} açılamadı: {e}")
             return

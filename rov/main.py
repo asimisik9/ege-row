@@ -166,6 +166,7 @@ def _run_mission_loop(mission, thr, stab, estop, gcs, hub, log, ad):
     lt = LoopTimer(LOOP_HZ, warn_hz=LOOP_WARN_HZ, name="control")
     print(f"{ad} baslatiliyor...")
     mission.start()
+    last_print = 0.0
     try:
         while True:
             lt.tick()
@@ -190,6 +191,16 @@ def _run_mission_loop(mission, thr, stab, estop, gcs, hub, log, ad):
                 if mission.step():
                     print("GOREV TAMAMLANDI!")
                     break
+
+            # 1 Hz terminal logu
+            now = time.monotonic()
+            if now - last_print >= 1.0:
+                last_print = now
+                s = hub.state.snapshot() if hub else stab.snap
+                if s:
+                    h = s.heading
+                    d = getattr(s, "depth_m", 0.0)
+                    print(f"[{mission.state:<10}] derinlik={d:5.2f} m  heading={h:6.1f} deg")
 
             if gcs:
                 gcs.update_telemetry(mission.state)
