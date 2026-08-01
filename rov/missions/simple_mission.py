@@ -44,25 +44,25 @@ class SimpleMission:
         yaw = 0.0
         heave = 0.0
 
-        # Zaman ayarlı hareketler (Açık çevrim)
+        # Zaman ayarlı hareketler (Açık çevrim) - Tam güç (1.0)
         if t < 4.0:
             self.state = "DIVE"
-            heave = 0.5  # Pozitif = Dalış
+            heave = 1.0  # Pozitif = Dalış, Tam güç
         elif t < 8.0:
             self.state = "FORWARD 1"
-            heave = 0.1  # Asılı kalma gücü (FF)
-            surge = 0.5  # İleri git
+            heave = 0.2  # Asılı kalma gücü (FF)
+            surge = 1.0  # İleri git, Tam güç
         elif t < 12.0:
             self.state = "TURN RIGHT"
-            heave = 0.1
-            yaw = 0.4    # Sağa dön
+            heave = 0.2
+            yaw = 1.0    # Sağa dön, Tam güç
         elif t < 16.0:
             self.state = "FORWARD 2"
-            heave = 0.1
-            surge = 0.5  # Tekrar ileri
+            heave = 0.2
+            surge = 1.0  # Tekrar ileri, Tam güç
         elif t < 20.0:
             self.state = "SURFACE"
-            heave = -0.5 # Negatif = Çıkış
+            heave = -1.0 # Negatif = Çıkış, Tam güç
         else:
             self.state = "DONE"
             return True
