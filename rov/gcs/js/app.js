@@ -148,7 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
       valTargetHeading.textContent = `Hedef: ${data.target_heading.toFixed(1)}°`;
     }
     if (num(data.pitch)) valPitch.innerHTML = `${data.pitch.toFixed(1)} <small>°</small>`;
-    if (num(data.roll)) valRoll.textContent = data.roll.toFixed(1);
+    if (num(data.roll)) valRoll.innerHTML = `${data.roll.toFixed(1)} <small>°</small>`;
     if (num(data.pressure_mbar)) valPressure.innerHTML = `${Math.round(data.pressure_mbar)} <small>mbar</small>`;
     if (num(data.temp_c)) valTemp.textContent = data.temp_c.toFixed(1);
 
