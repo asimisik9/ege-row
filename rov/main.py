@@ -267,10 +267,13 @@ def _run_mission_loop(mission, thr, stab, estop, gcs, hub, log, ad,
 
 
 def run_video_demo(thr, ori, depth, hub):
-    """Otonom video gosterimi gorevi."""
+    from comms.web_server import WebGCS
     from control.stabilizer import Stabilizer
-    from missions.video_demo import VideoDemoMission
     from utils.logger import MissionLogger
+    from missions.video_demo import VideoDemoMission
+    from missions.line_follow import LineFollowMission
+    from missions.nav_mission import NavMission
+    from missions.simple_mission import SimpleMission
     from hal.estop import EStopMonitor
 
     stab = Stabilizer(ori, depth, state=hub.state if hub else None)
@@ -279,7 +282,12 @@ def run_video_demo(thr, ori, depth, hub):
     mission = VideoDemoMission(stab, thr, logger=log)
 
     # Web'den baslatilabilecek gorevler (kamera gerektirmeyenler)
-    factory = {"video": lambda: VideoDemoMission(stab, thr, logger=log)}
+    factory = {
+        "video": lambda: VideoDemoMission(stab, thr, logger=log),
+        "line": lambda: LineFollowMission(stab, thr, logger=log),
+        "nav": lambda: NavMission(stab, thr, logger=log),
+        "simple": lambda: SimpleMission(stab, thr, logger=log),
+    }
 
     gcs = WebGCS()
     gcs.start(thrusters=thr, stabilizer=stab, estop=estop, hub=hub,
@@ -429,6 +437,8 @@ if __name__ == "__main__":
             run_line_follow(thr, ori, depth, hub)
         elif mission_arg == "nav":
             run_nav_mission(thr, ori, depth, hub)
+        elif mission_arg == "simple":
+            run_video_demo(thr, ori, depth, hub) # run_video_demo contains the factory and UI logic
         else:
             run_video_demo(thr, ori, depth, hub)
     finally:
