@@ -151,6 +151,8 @@ class SensorHub:
         self.imu_errors = 0
         self.depth_errors = 0
         self.vision_errors = 0
+        
+        self._last_err_print_t = 0.0
 
     def enable_vision(self, camera, grid_tracker):
         self.camera = camera
@@ -223,8 +225,11 @@ class SensorHub:
                     roll=self.ori.roll, pitch=self.ori.pitch,
                     yaw_rate=self.ori.yaw_rate, gyro=(gx, gy, gz),
                     now=now, hz=hz)
-            except Exception:
+            except Exception as e:
                 self.imu_errors += 1
+                if time.monotonic() - self._last_err_print_t > 2.0:
+                    print(f"[HUB UYARI] IMU okuma hatasi: {e}")
+                    self._last_err_print_t = time.monotonic()
             next_t += self.imu_dt
             time.sleep(max(0.0, next_t - time.monotonic()))
             if next_t < time.monotonic() - 0.5:   # cok geri kaldiysak saati sifirla
@@ -258,8 +263,11 @@ class SensorHub:
                     rate += a * (raw_rate - rate)
                 prev_t, prev_d = now, d
                 self.state.set_depth(d, rate, now, hz)
-            except Exception:
+            except Exception as e:
                 self.depth_errors += 1
+                if time.monotonic() - self._last_err_print_t > 2.0:
+                    print(f"[HUB UYARI] Derinlik okuma hatasi: {e}")
+                    self._last_err_print_t = time.monotonic()
             next_t += self.depth_dt
             time.sleep(max(0.0, next_t - time.monotonic()))
             if next_t < time.monotonic() - 0.5:
@@ -284,8 +292,11 @@ class SensorHub:
                         self.vision_yaw_deg = yaw_err
                         self._vision_t = now
                         self.vision_hz = hz
-            except Exception:
+            except Exception as e:
                 self.vision_errors += 1
+                if time.monotonic() - self._last_err_print_t > 2.0:
+                    print(f"[HUB UYARI] Vision okuma hatasi: {e}")
+                    self._last_err_print_t = time.monotonic()
                 
             next_t += 1.0 / 30.0 # max 30 hz
             time.sleep(max(0.0, next_t - time.monotonic()))

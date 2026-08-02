@@ -409,7 +409,7 @@ if __name__ == "__main__":
     args = sys.argv[1:]
 
     if "--manual" in args or "--no-sensors" in args:
-        from manual_drive import main as run_manual
+        from tests.manual_drive import main as run_manual
         run_manual()
         sys.exit(0)
 
