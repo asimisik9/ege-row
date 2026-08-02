@@ -223,7 +223,7 @@ def cember_yaricap_tahmini(surge, yaw, iz_genisligi):
     Itki ~ hiz^2 varsayimiyla hizlar sqrt ile olceklenir. Sadece buyukluk
     mertebesi verir — gercek yaricap suda olculmelidir.
     """
-    sag, sol = surge + yaw, surge - yaw
+    sol, sag = surge + yaw, surge - yaw
     if sol <= 0:
         return None                      # ic itici geri/durur -> yay cok dar
     v_sag, v_sol = math.sqrt(sag), math.sqrt(sol)

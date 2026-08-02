@@ -95,7 +95,32 @@ class VideoDemoMission:
             self.log.event(f"STATE -> {state}")
 
     def _elapsed(self):
-        return time.monotonic() - self._t0
+        return time.monotonic() - (self._t0 or time.monotonic())
+
+    def get_step_info(self):
+        """Web GCS ve terminal logu icin anlik gorev durumu ve sure bilgisi."""
+        M = MISSION
+        durations = {
+            "COUNTDOWN": M.get("start_delay_s", 10.0),
+            "DIVE": M.get("dive_timeout_s", 30.0),
+            "STRAIGHT1": M.get("straight_time_s", 17.0),
+            "STRAIGHT2": M.get("straight_time_s", 17.0),
+            "STRAIGHT3": M.get("straight_time_s", 17.0),
+            "STRAIGHT4": M.get("straight_time_s", 17.0),
+            "TURN1": M.get("turn_timeout_s", 20.0),
+            "TURN2": M.get("turn_timeout_s", 20.0),
+            "CIRCLE": 30.0,
+            "FINISH": 3.0,
+        }
+        elapsed = self._elapsed()
+        target_dur = durations.get(self.state, 0.0)
+        progress = min(100.0, (elapsed / target_dur * 100.0)) if target_dur > 0 else 0.0
+        return {
+            "step": self.state,
+            "elapsed_s": round(elapsed, 1),
+            "duration_s": round(target_dur, 1),
+            "progress_pct": round(progress, 1),
+        }
 
     # ------------------------------------------------ ana dongu adimi
     def step(self):
@@ -142,34 +167,7 @@ class VideoDemoMission:
                     print(f"[UYARI] Dalis timeout ({M['dive_timeout_s']:.0f}s) - "
                           f"hedef derinlige ulassamadi! (err={depth_err:.2f}m) "
                           "MOTOR_DIRECTION veya itki gucunu kontrol et.")
-                self._h0 = self.stab.ori.heading  # referans heading
-            depth_err = self.stab.depth_error()
-
-            # ---- Iki fazli dalis ----
-            # Faz 1 (Guc): Hedef derinligin 2x tolerans disindayken tam guc.
-            #   Roll/Pitch PID DEVRE DISI - bu kompanzasyon dikey motor gucunu
-            #   normalize ederek azaltiyor; dalis sirasinda gereksiz.
-            # Faz 2 (PID): Hedefe yakinken ince ayar (PID devreye girer).
-            if abs(depth_err) > M["depth_tol_m"] * 2:
-                # Tam guc dalis: hata isareti hangi yondeyse o yonde 1.0
-                dive_pwr = math.copysign(M.get("dive_power", 1.0), depth_err)
-                self.thr.command(mix(surge=0.0, yaw=0.0, heave=dive_pwr))
-                if self.log:
-                    self.log.event(
-                        f"DIVE_POWER heave={dive_pwr:.2f} err={depth_err:.3f}m"
-                    )
-            else:
-                # Hedefe yakin: PID ince kontrolu (roll/pitch dahil)
-                axes = self.stab.compute(surge=0.0)
-                self._apply(axes)
-
-            ok = abs(depth_err) < M["depth_tol_m"]
-            if ok or self._elapsed() > M["dive_timeout_s"]:
-                if self._elapsed() > M["dive_timeout_s"] and not ok:
-                    print(f"[UYARI] Dalis timeout ({M['dive_timeout_s']:.0f}s) - "
-                          f"hedef derinlige ulassamadi! (err={depth_err:.2f}m) "
-                          "MOTOR_DIRECTION veya itki gucunu kontrol et.")
-                self._h0 = self.stab.ori.heading  # referans heading
+                self._h0 = self.stab.ori.heading or 0.0  # referans heading
 
                 self.stab.set_targets(heading_deg=self._h0)
                 self.stab.set_heading_mode("cruise")

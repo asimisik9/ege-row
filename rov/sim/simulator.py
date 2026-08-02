@@ -69,7 +69,7 @@ class RovSimulator:
 
         # motor PWM degerlerinden eksen komutlarini geri cikar (mixer'in tersi)
         surge_cmd = (val["H_L"] + val["H_R"]) / 2.0
-        yaw_cmd = (val["H_R"] - val["H_L"]) / 2.0
+        yaw_cmd = (val["H_L"] - val["H_R"]) / 2.0
         heave_cmd = (val["V_FL"] + val["V_FR"] + val["V_RL"] + val["V_RR"]) / 4.0
 
         # birinci derece dinamik (su direnci: hiz aninda degil, zaman sabitiyle)

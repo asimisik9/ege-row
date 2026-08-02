@@ -268,16 +268,24 @@ def _run_mission_loop(mission, thr, stab, estop, gcs, hub, log, ad,
                 print("GOREV TAMAMLANDI!")
                 break
 
-            # 1 Hz terminal logu
+            # 1 Hz terminal logu + anlik gorev/adim suresi
+            step_info = getattr(mission, "get_step_info", lambda: {})() if mission else {}
             if now - last_print >= 1.0:
                 last_print = now
                 d = getattr(snap, "depth_m", 0.0)
                 h = getattr(snap, "heading", 0.0)
+                h_err = stab.heading_error() if stab else 0.0
                 mod = op.get()["mode"] if op else "-"
-                print(f"[{durum:<10}|{mod:<6}] derinlik={d:5.2f} m  heading={h:6.1f} deg")
+                
+                step_str = step_info.get("step", durum)
+                elapsed = step_info.get("elapsed_s", 0.0)
+                dur = step_info.get("duration_s", 0.0)
+                
+                print(f"[{step_str:<10} ({elapsed:4.1f}s/{dur:4.1f}s) | {mod:<6}] "
+                      f"derinlik={d:5.2f} m  heading={h:6.1f}° (hata:{h_err:5.1f}°)")
 
             if gcs:
-                gcs.update_telemetry(durum)
+                gcs.update_telemetry(durum, extra_data={"mission_info": step_info})
             lt.sleep()
     except KeyboardInterrupt:
         print("Ctrl+C — iptal.")

@@ -90,9 +90,9 @@ def deadband_compensate(u, eps=DEADBAND_EPS):
 def mix(surge, yaw, heave, roll=0.0, pitch=0.0):
     """Eksen komutlari -> {motor_adi: -1..+1} sozlugu."""
     m = {
-        # yatay: diferansiyel surus
-        "H_L": surge - yaw,
-        "H_R": surge + yaw,
+        # yatay: diferansiyel surus (pozitif yaw = sag donus: H_L +, H_R -)
+        "H_L": surge + yaw,
+        "H_R": surge - yaw,
         # dikey: heave ortak, roll sol/sag zit, pitch on/arka zit
         "V_FL": heave + roll + pitch,
         "V_FR": heave - roll + pitch,
