@@ -52,10 +52,18 @@ def main():
         print("  3. IMU üzerindeki VCC (3.3V) ve GND ışığı yanıyor mu?")
         sys.exit(1)
 
+    import threading
+    running = True
+    def imu_worker():
+        while running:
+            ori.update()
+            time.sleep(0.01)  # 100 Hz EKF güncelleme
+
+    t = threading.Thread(target=imu_worker, daemon=True)
+    t.start()
+
     print("\nFiltre ısınması için 1 saniye bekleniyor...")
-    for _ in range(20):
-        ori.update()
-        time.sleep(0.05)
+    time.sleep(1.0)
 
     print("\n-----------------------------------------------------------------")
     print("CANLI IMU YÖNELİM VERİLERİ OKUNUYOR (Çıkış için Ctrl+C'ye basın)...")
@@ -73,7 +81,7 @@ def main():
     sample_count = 0
     try:
         while True:
-            hdg = ori.update()
+            hdg = ori.heading if ori.heading is not None else 0.0
             pitch = ori.pitch
             roll = ori.roll
             yaw_rate = ori.yaw_rate
@@ -92,9 +100,10 @@ def main():
                 print("\n[OK] İstenen sayıda okuma alındı.")
                 break
 
-            time.sleep(0.05)  # 20 Hz canlı yayın
+            time.sleep(0.05)  # Ekrana yazdırma (20 Hz)
 
     except KeyboardInterrupt:
+        running = False
         print("\n\nTest durduruldu. IMU ve Pusula Veri Akışı BAŞARILI!")
 
 
