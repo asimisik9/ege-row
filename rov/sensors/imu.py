@@ -155,7 +155,7 @@ class Mpu9250:
             print("[IMU] config.py'de USE_MAGNETOMETER = False. Manyetometre bypass edildi (Sadece Gyro-Heading).")
 
     # ------------------------------------------------------------- ham okuma
-    def _read_i16(self, addr, reg, little=False, retries=3):
+    def _read_i16(self, addr, reg, little=False, retries=10):
         for attempt in range(retries):
             try:
                 with I2C_LOCK:
@@ -166,9 +166,9 @@ class Mpu9250:
             except OSError:
                 if attempt == retries - 1:
                     raise
-                time.sleep(0.01)
+                time.sleep(0.05)
 
-    def _read_block3(self, reg, scale, retries=3):
+    def _read_block3(self, reg, scale, retries=10):
         for attempt in range(retries):
             try:
                 with I2C_LOCK:
@@ -177,7 +177,7 @@ class Mpu9250:
             except OSError:
                 if attempt == retries - 1:
                     raise
-                time.sleep(0.01)
+                time.sleep(0.05)
         vals = []
         for i in range(3):
             raw = (d[2 * i] << 8) | d[2 * i + 1]
@@ -300,9 +300,14 @@ class Orientation:
         dt = 0.01 if self._prev_t is None else max(1e-4, now - self._prev_t)
         self._prev_t = now
 
-        ax, ay, az = self.drv.read_accel_g()
-        gx, gy, gz = self.drv.read_gyro_dps()
-        mag = self.drv.read_mag_ut()
+        try:
+            ax, ay, az = self.drv.read_accel_g()
+            gx, gy, gz = self.drv.read_gyro_dps()
+            mag = self.drv.read_mag_ut()
+        except Exception as e:
+            # Sinyal tamamen koparsa bu adımı atla (çökmeyi engelle)
+            print(f"[IMU UYARI] I2C okuma hatasi: {e}")
+            return self.heading or 0.0
         
         # Rad/s'ye cevir
         gx_rad = math.radians(gx)
