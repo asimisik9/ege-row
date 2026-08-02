@@ -97,7 +97,9 @@ class HeadingController:
         w_target = clamp(self.kp_pos * err, -self.w_max, self.w_max)
 
         # IC KATMAN: istenen donus hizini yakala.
-        out = self.rate.update(w_target - yaw_rate_dps, meas_rate=yaw_rate_dps, now=now)
+        # HATA: Burada meas_rate verilmemelidir cunku olcumun kendisi hizdir.
+        # D terimi ivme kullanmalidir. Bu yuzden measurement=yaw_rate_dps verilir.
+        out = self.rate.update(w_target - yaw_rate_dps, measurement=yaw_rate_dps, now=now)
 
         self.last = dict(err=err, w_target=w_target,
                          w_meas=yaw_rate_dps, out=out)
@@ -111,7 +113,7 @@ class HeadingController:
         cap tekrarlanabilir olur:   cap = 2 * ileri_hiz / donus_hizi
         """
         out = self.rate.update(w_target_dps - yaw_rate_dps,
-                               meas_rate=yaw_rate_dps, now=now)
+                               measurement=yaw_rate_dps, now=now)
         self.last = dict(err=0.0, w_target=w_target_dps,
                          w_meas=yaw_rate_dps, out=out)
         return out
