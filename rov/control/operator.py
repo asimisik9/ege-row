@@ -142,13 +142,17 @@ class StepRecorder:
         asim_pct = max(0.0, (uc - hedef) / genlik * 100.0)
         asim_abs = abs(uc - hedef)
 
-        # yerlesme suresi: %5 bandina girip bir daha cikmadigi ilk an
+        # yerlesme suresi: %5 bandina girip bir daha cikmadigi ilk an (O(N) algoritma)
         band = abs(genlik) * 0.05
         yerlesme = None
-        for i in range(len(v)):
-            if all(abs(x - hedef) <= band for x in v[i:]):
-                yerlesme = t[i]
+        for i in range(len(v) - 1, -1, -1):
+            if abs(v[i] - hedef) > band:
+                if i < len(v) - 1:
+                    yerlesme = t[i+1]
                 break
+        else:
+            if len(v) > 0:
+                yerlesme = t[0]
 
         # kalici hata + gurultu (son 5 sn)
         son = [x for tt, x in zip(t, v) if tt >= t[-1] - 5.0]
