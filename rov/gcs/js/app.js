@@ -855,7 +855,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateKeyboardTeleop() {
     let surge = 0.0, yaw = 0.0, heave = 0.0;
-    const step = 0.25;
+    const step = 1.0;
 
     if (activeKeys['w']) surge += step;
     if (activeKeys['s']) surge -= step;
