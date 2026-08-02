@@ -341,12 +341,11 @@ def run_line_follow(thr, ori, depth, hub):
     from hal.estop import EStopMonitor
 
     stab = Stabilizer(ori, depth, state=hub.state if hub else None)
-    cam = Camera()
+    cam = hub.camera if hub else None
     log = MissionLogger("line_follow")
     estop = EStopMonitor(thr)
     mission = LineFollowMission(stab, thr, cam, logger=log)
 
-    cam.start()
     estop.start()
     factory = {
         "line": lambda: LineFollowMission(stab, thr, cam, logger=log),
@@ -380,12 +379,13 @@ def run_nav_mission(thr, ori, depth, hub):
     from hal.estop import EStopMonitor
 
     stab = Stabilizer(ori, depth, state=hub.state if hub else None)
-    cam, gps, sonar = Camera(), GPS(), PingSonar()
+    cam = hub.camera if hub else None
+    gps, sonar = GPS(), PingSonar()
     log = MissionLogger("nav_mission")
     estop = EStopMonitor(thr)
     mission = NavMission(stab, thr, cam, gps, sonar, logger=log)
 
-    cam.start(); gps.start(); sonar.start(); estop.start()
+    gps.start(); sonar.start(); estop.start()
     factory = {"nav": lambda: NavMission(stab, thr, cam, gps, sonar, logger=log)}
     gcs = WebGCS()
     # gps/sonar da verilir: konum ve mesafe artik arayuzde canli gorunur
