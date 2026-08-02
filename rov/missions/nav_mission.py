@@ -256,7 +256,10 @@ class NavMission:
         return time.monotonic() - self._t0
 
     def _apply(self, axes, surge):
-        self._dr.update(self.stab.ori.heading or 0.0, surge)
+        pitch = 0.0
+        if self.stab.snap is not None:
+            pitch = self.stab.snap.pitch
+        self._dr.update(self.stab.heading_deg or 0.0, pitch, surge)
         self.thr.command(mix(**axes))
         if self.log:
             self.log.sample(self.state, self.stab, axes)

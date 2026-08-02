@@ -43,12 +43,13 @@ class DeadReckoning:
         self._prev_t = None
         print(f"[DR] Konum sifirlandi: ({x:.2f}, {y:.2f})")
 
-    def update(self, heading_deg: float, throttle: float):
+    def update(self, heading_deg: float, pitch_deg: float, throttle: float):
         """
-        Mevcut heading ve ileri gazla pozisyonu guncelle.
+        Mevcut heading, pitch ve ileri gazla pozisyonu guncelle.
         50Hz dongu icin tasarlandi (dt ~ 0.02s).
 
         heading_deg : Orientation.heading (0-360, kuzey=0, dogu=90)
+        pitch_deg   : Orientation.pitch (burun yukari +, burun asagi -)
         throttle    : surge komutu (-1..+1)
         """
         now = time.monotonic()
@@ -58,7 +59,7 @@ class DeadReckoning:
         if dt == 0.0:
             return
 
-        speed = throttle * self.THROTTLE_TO_MS
+        speed = throttle * self.THROTTLE_TO_MS * math.cos(math.radians(pitch_deg))
         h_rad = math.radians(heading_deg)
         # Kuzey = 0° → X = dogu, Y = kuzey
         self.x += speed * math.sin(h_rad) * dt
