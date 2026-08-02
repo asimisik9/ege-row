@@ -26,6 +26,7 @@ import time
 from config import (I2C_BUS, IMU_ADDR, MAG_ADDR, HEADING_FILTER_ALPHA,
                     MAG_OFFSET, MAG_SCALE, GYRO_BIAS, USE_MAGNETOMETER)
 from hal.i2c_lock import I2C_LOCK
+from sensors.ekf import EKF
 
 try:
     from config import ACCEL_BIAS
@@ -245,94 +246,111 @@ class MockImuStatic:
 
 
 class Orientation:
-    """Tamamlayici filtre ile heading/roll/pitch kestirimi.
+    """EKF (Extended Kalman Filter) ile heading/roll/pitch kestirimi.
 
-    NEDEN TAMAMLAYICI FILTRE:
-      Jiroskop hizli ama SURUKLENIR (kucuk hatalar toplana toplana buyur).
-      Manyetometre/ivmeolcer yavas ve gurultulu ama SURUKLENMEZ.
-      Filtre: "kisa vadede jiroskopa guven, uzun vadede digerine dogru
-      yavasca duzelt."  alpha = jiroskobun agirligi.
+    Jiroskop hizli ama SURUKLENIR.
+    Ivmeolcer roll/pitch duzeltir.
+    Pusula (veya gorsel isleme) heading duzeltir.
+    EKF, bunlari istatistiksel en iyi sekilde harmanlar ve gyro bias'i da tahmin eder.
     """
 
     def __init__(self, driver):
         self.drv = driver
+        self.ekf = EKF(dt=0.01)
         self.heading = None
         self.roll = 0.0
         self.pitch = 0.0
         self.yaw_rate = 0.0
-        self.gyro = (0.0, 0.0, 0.0)     # roll/pitch PID'inin D terimi icin
-        self.mag_heading = None         # tanilama: ham pusula okumasi
-        self.mag_rejected = 0           # kac kez pusula duzeltmesi atlandi
+        self.gyro = (0.0, 0.0, 0.0)
+        self.mag_heading = None
+        self.mag_rejected = 0
         self._prev_t = None
+        
+        # Sadece ilk deger atamasi icin
+        self._initialized = False
 
     @staticmethod
     def _mag_heading(mag, roll_r, pitch_r):
-        """Egim-telafili (tilt-compensated) pusula hesabi.
-
-        DIKKAT: bu fonksiyon roll/pitch'e BAGIMLIDIR. SORUN 1'de roll/pitch
-        sahte oldugu icin pusula da sahte cikiyordu — heading kaymasinin
-        sebebi ayri bir ariza degil, bu bagimliliktir.
-        """
+        """Egim-telafili (tilt-compensated) pusula hesabi."""
         mx, my, mz = mag
         xh = mx * math.cos(pitch_r) + mz * math.sin(pitch_r)
         yh = (mx * math.sin(roll_r) * math.sin(pitch_r) + my * math.cos(roll_r)
               - mz * math.sin(roll_r) * math.cos(pitch_r))
         return (math.degrees(math.atan2(-yh, xh)) + 360.0) % 360.0
 
-    def update(self):
-        """Sensorleri bir kez okuyup heading/roll/pitch/yaw_rate degerlerini
-        tamamlayici filtre (complementary filter) ile gunceller ve guncel
-        heading degerini dondurur. SensorHub tarafindan ~100 Hz cagrilir.
-
-        MOUNT_PITCH_DEG / MOUNT_ROLL_DEG: IMU'nun fiziksel montaj acisi.
-        calibrate_imu.py bu degerleri ROV'un dogal durusunda olcup config'e
-        yazar. Burada cikartilinarak ROV'un dogal durusu her zaman
-        roll=0 pitch=0 olarak tanimlanir. IMU acisindan bagimsiz calisir."""
+    def update(self, external_yaw_rad=None):
+        """Sensorleri bir kez okuyup EKF'yi isletir.
+        external_yaw_rad: Eger disaridan mutlak bir yaw (Vision Grid gibi) verilirse, EKF bunu kullanir.
+        """
         now = time.monotonic()
-        dt = 0.0 if self._prev_t is None else max(1e-4, now - self._prev_t)
+        dt = 0.01 if self._prev_t is None else max(1e-4, now - self._prev_t)
         self._prev_t = now
 
         ax, ay, az = self.drv.read_accel_g()
         gx, gy, gz = self.drv.read_gyro_dps()
         mag = self.drv.read_mag_ut()
-        self.yaw_rate = gz
-        self.gyro = (gx, gy, gz)
+        
+        # Rad/s'ye cevir
+        gx_rad = math.radians(gx)
+        gy_rad = math.radians(gy)
+        gz_rad = math.radians(gz)
 
-        # roll/pitch: ivmeolcer referans + jiroskop kisa vade
-        # MOUNT_*_DEG: IMU montaj acisindan kaynaklanan ofset cikarilir
-        acc_roll  = math.degrees(math.atan2(ay, az))             - MOUNT_ROLL_DEG
-        acc_pitch = math.degrees(math.atan2(-ax, math.hypot(ay, az))) - MOUNT_PITCH_DEG
-        a = ROLL_PITCH_FILTER_ALPHA
-        self.roll  = a * (self.roll  + gx * dt) + (1 - a) * acc_roll
-        self.pitch = a * (self.pitch + gy * dt) + (1 - a) * acc_pitch
+        # 1. EKF Predict (Jiroskop)
+        self.ekf.predict([gx_rad, gy_rad, gz_rad], dt)
 
-        # heading: jiroskop entegrasyonu + manyetometre duzeltmesi
-        # mag=None: has_mag=False veya I/O hatasi -> gyro-only yol
-        if mag is None:
-            mag_h = None
-            self.mag_rejected += 1
-        else:
+        # 2. EKF Update (Ivmeolcer)
+        # MOUNT_ROLL_DEG / MOUNT_PITCH_DEG telafisini ivme vektorunu dondurerek yapmak EKF'de zordur,
+        # ancak EKF Euler sonuclarindan cikarabiliriz.
+        self.ekf.update_accel([ax, ay, az])
+
+        # 3. EKF Update (Pusula veya Dis Yaw)
+        mag_h = None
+        if mag is not None:
             mag_norm = math.sqrt(sum(v * v for v in mag))
             mag_gecerli = MAG_MIN_UT < mag_norm < MAG_MAX_UT
-
             if mag_gecerli:
-                mag_h = self._mag_heading(mag, math.radians(self.roll),
-                                          math.radians(self.pitch))
+                # EKF Euler
+                r, p, y = self.ekf.get_euler()
+                mag_h = self._mag_heading(mag, r, p)
                 self.mag_heading = mag_h
             else:
-                # Havuz kenarindaki demir donati / motor akimi pusulayi bozdu.
-                # Bu adimda duzeltmeyi ATLA, jiroskopla devam et.
                 self.mag_rejected += 1
-                mag_h = None
 
-        if self.heading is None:
-            self.heading = mag_h if mag_h is not None else 0.0
-        else:
-            gyro_h = (self.heading + gz * dt) % 360.0
-            if mag_h is None:
-                self.heading = gyro_h
+        if external_yaw_rad is not None:
+            self.ekf.update_yaw(external_yaw_rad)
+        elif mag_h is not None:
+            self.ekf.update_yaw(math.radians(mag_h))
+
+        # Euler acilarini al
+        r_rad, p_rad, y_rad = self.ekf.get_euler()
+        
+        # Montaj acilarini cikar (basit lineer cıkarma, Euler varsayımı ile)
+        self.roll = math.degrees(r_rad) - MOUNT_ROLL_DEG
+        self.pitch = math.degrees(p_rad) - MOUNT_PITCH_DEG
+        
+        # Heading 0-360 araligina getir
+        raw_heading = (math.degrees(y_rad) + 360.0) % 360.0
+        
+        if not self._initialized:
+            if mag_h is not None:
+                self.heading = mag_h
+                # EKF'nin baslangic yaw'ini ayarla
+                dq = np.array([math.cos(math.radians(mag_h)/2), 0, 0, math.sin(math.radians(mag_h)/2)])
+                self.ekf.q = dq
+                raw_heading = mag_h
             else:
-                # acisal sarmali dogru harmanla (359 ile 1 arasi fark 2'dir)
-                diff = (mag_h - gyro_h + 180.0) % 360.0 - 180.0
-                self.heading = (gyro_h + (1 - HEADING_FILTER_ALPHA) * diff) % 360.0
+                self.heading = 0.0
+            self._initialized = True
+        else:
+            self.heading = raw_heading
+
+        # EKF'nin bias-kompanze edilmis jiroskop verisini disari veriyoruz (PID D terimi icin cok temiz)
+        # EKF'nin bg'si rad/s cinsinden
+        comp_gx = gx - math.degrees(self.ekf.bg[0])
+        comp_gy = gy - math.degrees(self.ekf.bg[1])
+        comp_gz = gz - math.degrees(self.ekf.bg[2])
+        
+        self.yaw_rate = comp_gz
+        self.gyro = (comp_gx, comp_gy, comp_gz)
+
         return self.heading

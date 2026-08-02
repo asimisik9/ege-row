@@ -606,6 +606,12 @@ class GCSHTTPRequestHandler(SimpleHTTPRequestHandler):
             g_ctx.operator.recorder.stop()
             return {"ok": True, "message": "Adım kaydı durduruldu"}
 
+        if cmd == "grid_lock":
+            active = bool(msg.get("active", False))
+            if g_ctx.hub:
+                g_ctx.hub.use_vision_yaw = active
+            return {"ok": True, "message": f"Grid Lock {'Aktif' if active else 'Kapalı'}"}
+
         if cmd == "analyze":
             return g_ctx.operator.recorder.analyze()
 

@@ -59,6 +59,11 @@ class Snapshot:
         for k in self.__slots__:
             setattr(self, k, kw.get(k, 0.0))
 
+        # Vision heading is stored here for the IMU loop to read
+        self.vision_yaw_deg = None
+        self.vision_yaw_age = 999.0
+        self.vision_hz = 0.0
+
 
 class RovState:
     """Sensor thread'lerinin yazdigi, kontrol dongusunun okudugu ortak hafiza."""
@@ -139,10 +144,22 @@ class SensorHub:
         self.depth_rate_tau = depth_rate_tau
         self.stale_s = stale_s
 
+        self.camera = None
+        self.grid_tracker = None
+        self.vision_yaw_deg = None
+        self.use_vision_yaw = False
+        self._vision_t = 0.0
+        self.vision_hz = 0.0
+
         self._stop = threading.Event()
         self._threads = []
         self.imu_errors = 0
         self.depth_errors = 0
+        self.vision_errors = 0
+
+    def enable_vision(self, camera, grid_tracker):
+        self.camera = camera
+        self.grid_tracker = grid_tracker
 
     # ------------------------------------------------------------- yasam dongusu
     def start(self):
@@ -152,6 +169,9 @@ class SensorHub:
             threading.Thread(target=self._imu_loop, name="imu", daemon=True),
             threading.Thread(target=self._depth_loop, name="depth", daemon=True),
         ]
+        if self.camera and self.grid_tracker:
+            self._threads.append(threading.Thread(target=self._vision_loop, name="vision", daemon=True))
+
         for t in self._threads:
             t.start()
 
@@ -191,7 +211,13 @@ class SensorHub:
         hz = 0.0
         while not self._stop.is_set():
             try:
-                self.ori.update()
+                ext_yaw = None
+                now = time.monotonic()
+                if self.use_vision_yaw and self.vision_yaw_deg is not None and (now - self._vision_t) < 1.0:
+                    import math
+                    ext_yaw = math.radians(self.vision_yaw_deg)
+                    
+                self.ori.update(external_yaw_rad=ext_yaw)
                 now = time.monotonic()
                 inst = 1.0 / max(1e-3, now - prev)
                 prev = now
@@ -240,6 +266,33 @@ class SensorHub:
             except Exception:
                 self.depth_errors += 1
             next_t += self.depth_dt
+            time.sleep(max(0.0, next_t - time.monotonic()))
+            if next_t < time.monotonic() - 0.5:
+                next_t = time.monotonic()
+
+    def _vision_loop(self):
+        """Kamerayi 30Hz'de okuyup Grid Tracker'i calistirir."""
+        next_t = time.monotonic()
+        prev_t = time.monotonic()
+        hz = 0.0
+        while not self._stop.is_set():
+            try:
+                frame = self.camera.read()
+                if frame is not None:
+                    yaw_err, _ = self.grid_tracker.process(frame)
+                    now = time.monotonic()
+                    inst = 1.0 / max(1e-3, now - prev_t)
+                    prev_t = now
+                    hz += 0.05 * (inst - hz)
+                    
+                    if yaw_err is not None:
+                        self.vision_yaw_deg = yaw_err
+                        self._vision_t = now
+                        self.vision_hz = hz
+            except Exception:
+                self.vision_errors += 1
+                
+            next_t += 1.0 / 30.0 # max 30 hz
             time.sleep(max(0.0, next_t - time.monotonic()))
             if next_t < time.monotonic() - 0.5:
                 next_t = time.monotonic()

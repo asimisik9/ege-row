@@ -52,6 +52,8 @@ def build_system():
     from sensors.imu import Mpu9250, MockImu, Orientation
     from sensors.depth import Ms5837, MockDepth
     from sensors.state import SensorHub
+    from sensors.camera import Camera
+    from vision.grid_tracker import GridTracker
 
     if SIM_MODE:
         import threading
@@ -98,16 +100,32 @@ def build_system():
         ori = Orientation(imu_sensor)
 
         try:
-            depth = Ms5837()
+            depth_sensor = Ms5837()
             print("[OK] MS5837 derinlik sensoru baglandi.")
         except Exception as e:
             print(f"[UYARI] MS5837 baglanamadi ({e}), MockDepth kullaniliyor.")
-            depth = MockDepth()
+            depth_sensor = MockDepth()
+            
+        try:
+            cam = Camera()
+            cam.start()
+            grid_trk = GridTracker()
+            print("[OK] Vision Grid Tracker aktif.")
+        except Exception as e:
+            print(f"[UYARI] Kamera veya GridTracker baslatilamadi: {e}")
+            cam = None
+            grid_trk = None
+        depth = depth_sensor
 
     # SORUN 2: sensorler kendi thread'lerinde, kontrol dongusu bloklanmaz
     hub = SensorHub(ori, depth,
                     imu_hz=IMU_THREAD_HZ, depth_hz=DEPTH_THREAD_HZ,
-                    depth_rate_tau=DEPTH_RATE_TAU, stale_s=SENSOR_STALE_S).start()
+                    depth_rate_tau=DEPTH_RATE_TAU, stale_s=SENSOR_STALE_S)
+    
+    if not SIM_MODE and cam and grid_trk:
+        hub.enable_vision(cam, grid_trk)
+        
+    hub.start()
     return thr, ori, depth, hub
 
 

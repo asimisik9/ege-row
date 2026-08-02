@@ -832,6 +832,22 @@ document.addEventListener('DOMContentLoaded', () => {
     if (ov) ov.style.display = e.target.checked ? 'block' : 'none';
   });
 
+  let gridLockActive = false;
+  on('btn-grid-lock', 'click', () => {
+    gridLockActive = !gridLockActive;
+    const btn = document.getElementById('btn-grid-lock');
+    if (gridLockActive) {
+      btn.textContent = 'GRID LOCK (Vision) : AKTİF';
+      btn.style.backgroundColor = '#00ffcc';
+      btn.style.color = '#000';
+    } else {
+      btn.textContent = 'GRID LOCK (Vision) : KAPALI';
+      btn.style.backgroundColor = '';
+      btn.style.color = '';
+    }
+    sendCommand('grid_lock', { active: gridLockActive });
+  });
+
   // ── 5. Klavye Teleop Sürüş Mantığı ───────────────────────────────────────
   const activeKeys = {};
   const teleopStatus = $('teleop-status');
