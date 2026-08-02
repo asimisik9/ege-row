@@ -37,13 +37,17 @@ def _sample(imu, read_fn, duration_s, label, print_live=False):
     xs, ys, zs = [], [], []
     t0 = time.monotonic()
     while time.monotonic() - t0 < duration_s:
-        v = read_fn()
-        xs.append(v[0]); ys.append(v[1]); zs.append(v[2])
-        if print_live:
-            elapsed = time.monotonic() - t0
-            remaining = duration_s - elapsed
-            print(f"    {remaining:4.1f}s kaldı  "
-                  f"X:{v[0]:7.2f}  Y:{v[1]:7.2f}  Z:{v[2]:7.2f}", end="\r")
+        try:
+            v = read_fn()
+            xs.append(v[0]); ys.append(v[1]); zs.append(v[2])
+            if print_live:
+                elapsed = time.monotonic() - t0
+                remaining = duration_s - elapsed
+                print(f"    {remaining:4.1f}s kaldı  "
+                      f"X:{v[0]:7.2f}  Y:{v[1]:7.2f}  Z:{v[2]:7.2f}", end="\r")
+        except Exception:
+            # I2C okuma hatası olursa (Errno 121), çökmek yerine bu okumayı pas geç
+            pass
         time.sleep(0.02)
     if print_live:
         print()
