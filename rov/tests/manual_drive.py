@@ -23,13 +23,13 @@ import time
 import select
 import threading
 
-import config
-if "--sim" in sys.argv:
-    config.SIM_MODE = True
-
 import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+import config
+if "--sim" in sys.argv:
+    config.SIM_MODE = True
 
 from config import LOOP_HZ, SIM_MODE, MOTOR_CHANNELS, PWM_NEUTRAL_US
 from control.mixer import mix
