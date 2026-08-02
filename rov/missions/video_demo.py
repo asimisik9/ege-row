@@ -187,12 +187,11 @@ class VideoDemoMission:
             return False
 
         # ---- DUZ GIDISLER -------------------------------------------------
-        # (CIRCLE gecici olarak devre disi — STRAIGHT2 doğrudan TURN2'ye gecer)
-        # SAGA donuste aci 270'e (eksi yon) kaydigi icin hdg_off negatif:
+        # Sadece STRAIGHT1 (15sn) ve STRAIGHT2 (15sn) aktif; digerleri yorum satirinda.
         for st, next_st, hdg_off in (("STRAIGHT1", "TURN1", 0),
-                                     ("STRAIGHT2", "TURN2", -90),
-                                     ("STRAIGHT3", "TURN3", -180),
-                                     ("STRAIGHT4", "FINISH", -270)):
+                                     ("STRAIGHT2", "FINISH", -90)):
+                                     # ("STRAIGHT3", "TURN3", -180),
+                                     # ("STRAIGHT4", "FINISH", -270)):
             if s == st:
                 self.stab.set_heading_mode("cruise")
                 self.stab.set_targets(depth_m=M["target_depth_m"],
@@ -204,9 +203,10 @@ class VideoDemoMission:
                 return False
 
         # ---- 90 DERECE DONUSLER (yerinde) ---------------------------------
-        for st, next_st, target_off in (("TURN1", "STRAIGHT2", -90),
-                                        ("TURN2", "STRAIGHT3", -180),
-                                        ("TURN3", "STRAIGHT4", -270)):
+        # Sadece TURN1 (SAGA 90) aktif; digerleri yorum satirinda.
+        for st, next_st, target_off in (("TURN1", "STRAIGHT2", -90),):
+                                        # ("TURN2", "STRAIGHT3", -180),
+                                        # ("TURN3", "STRAIGHT4", -270)):
             if s == st:
                 self.stab.set_heading_mode("turn")
                 self.stab.set_targets(depth_m=M["target_depth_m"],
@@ -262,7 +262,7 @@ class VideoDemoMission:
             # (Yuzeye cikmak yasak — su altinda duruyoruz.)
             self.stab.set_heading_mode("turn")
             self.stab.set_targets(depth_m=M["target_depth_m"],
-                                  heading_deg=self._h0 - 270)
+                                  heading_deg=self._h0 - 90)
             axes = self.stab.compute(surge=0.0)
             self._apply(axes)
             if self._elapsed() > 3.0:

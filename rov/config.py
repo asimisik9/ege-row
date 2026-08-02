@@ -176,7 +176,7 @@ MISSION = dict(
     dive_power       = 1.0,   # dalis fazinda tam guc: 1.0 = motorlarin max itisi
                               # ROV boyutuna gore 0.8..1.0 arasi dene
     depth_tol_m      = 0.15,  # derinlik "tamam" toleransi
-    straight_time_s  = 17.0,  # min 15 sn sart -> 17 sn (tam garanti)
+    straight_time_s  = 15.0,  # 15 saniye ileri gidis
     cruise_throttle  = 0.35,  # duz gidis ileri gaz (0..1) - hiz kalibrasyonuyla ayarlanacak
     turn_tol_deg     = 4.0,   # donus tamamlandi toleransi (4 derece hassasiyet)
     turn_settle_s    = 1.0,   # donus sonrasi sabitlenme suresi
