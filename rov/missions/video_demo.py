@@ -109,7 +109,7 @@ class VideoDemoMission:
             "STRAIGHT4": M.get("straight_time_s", 17.0),
             "TURN1": M.get("turn_timeout_s", 20.0),
             "TURN2": M.get("turn_timeout_s", 20.0),
-            "CIRCLE": 30.0,
+            "CIRCLE": 11.3,
             "FINISH": 3.0,
         }
         elapsed = self._elapsed()
@@ -226,31 +226,23 @@ class VideoDemoMission:
             self._circle_prev_t = now
 
             w = self.stab.snap.yaw_rate if self.stab.snap else 0.0
-            if not self._circle_done and abs(w) > GYRO_NOISE_DPS:
+            if abs(w) > GYRO_NOISE_DPS:
                 self._circle_acc += abs(w) * dt
-                if self._circle_acc >= 270.0:  # 270 derece sola donus yayi tamamlandi
-                    self._circle_done = True
-                    if self.log:
-                        self.log.event(f"DAIRE 270 tamamlandi: {self._circle_acc:.1f} deg")
 
-            if not self._circle_done:
+            # Sola 270 derece daire yayi (pozitif yaw_rate_target = SOLA DONUS)
+            if self._circle_acc < 270.0 and self._elapsed() < 20.0:
                 self.stab.set_heading_mode("circle")
                 self.stab.set_targets(depth_m=M["target_depth_m"])
-                # Sola donus daire yay: yaw_rate_target = -24.0°/s
                 axes = self.stab.compute(
                     surge=M["circle_throttle"],
-                    yaw_rate_target=-abs(M.get("circle_yaw_rate_dps", 24.0)))
+                    yaw_rate_target=abs(M.get("circle_yaw_rate_dps", 24.0)))
                 self._apply(axes)
             else:
-                # 270° sola donus bitti -> h0 - 180° yonune kilitlenip STRAIGHT3'e gec
-                self.stab.set_heading_mode("turn")
-                self.stab.set_targets(depth_m=M["target_depth_m"],
-                                      heading_deg=self._h0 - 180)
-                axes = self.stab.compute(surge=0.0)
-                self._apply(axes)
-                if self._turn_done(M) or self._elapsed() > (M["turn_timeout_s"] + 15.0):
-                    self._circle_prev_t = None
-                    self._enter("PAUSE_STRAIGHT3")
+                # 270° sola donus bitti -> Doğrudan STRAIGHT3'e gec!
+                if self.log:
+                    self.log.event(f"DAIRE 270 sola tamam: {self._circle_acc:.1f} deg")
+                self._circle_prev_t = None
+                self._enter("PAUSE_STRAIGHT3")
             return False
 
         # ---- BITIS --------------------------------------------------------
