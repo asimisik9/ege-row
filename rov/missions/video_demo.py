@@ -187,11 +187,10 @@ class VideoDemoMission:
             return False
 
         # ---- DUZ GIDISLER -------------------------------------------------
-        # Sadece STRAIGHT1 (15sn) ve STRAIGHT2 (15sn) aktif; digerleri yorum satirinda.
         for st, next_st, hdg_off in (("STRAIGHT1", "TURN1", 0),
-                                     ("STRAIGHT2", "FINISH", -90)):
-                                     # ("STRAIGHT3", "TURN3", -180),
-                                     # ("STRAIGHT4", "FINISH", -270)):
+                                     ("STRAIGHT2", "CIRCLE", -90),
+                                     ("STRAIGHT3", "TURN2", -180),
+                                     ("STRAIGHT4", "FINISH", -270)):
             if s == st:
                 self.stab.set_heading_mode("cruise")
                 self.stab.set_targets(depth_m=M["target_depth_m"],
@@ -203,10 +202,8 @@ class VideoDemoMission:
                 return False
 
         # ---- 90 DERECE DONUSLER (yerinde) ---------------------------------
-        # Sadece TURN1 (SAGA 90) aktif; digerleri yorum satirinda.
-        for st, next_st, target_off in (("TURN1", "STRAIGHT2", -90),):
-                                        # ("TURN2", "STRAIGHT3", -180),
-                                        # ("TURN3", "STRAIGHT4", -270)):
+        for st, next_st, target_off in (("TURN1", "STRAIGHT2", -90),
+                                        ("TURN2", "STRAIGHT4", -270)):
             if s == st:
                 self.stab.set_heading_mode("turn")
                 self.stab.set_targets(depth_m=M["target_depth_m"],
@@ -222,8 +219,7 @@ class VideoDemoMission:
                     self._enter(f"PAUSE_{next_st}")
                 return False
 
-        # ---- DAIRE (GECICI OLARAK YORUM SATIRINDA / DEVRE DISI) -----------
-        """
+        # ---- DAIRE (SOLA 270° YAY VE DÜZ 3'E GEÇİŞ) ------------------------
         if s == "CIRCLE":
             now = time.monotonic()
             dt = 0.0 if self._circle_prev_t is None else (now - self._circle_prev_t)
@@ -231,30 +227,31 @@ class VideoDemoMission:
 
             w = self.stab.snap.yaw_rate if self.stab.snap else 0.0
             if not self._circle_done and abs(w) > GYRO_NOISE_DPS:
-                self._circle_acc += w * dt
-                if abs(self._circle_acc) >= M["circle_deg"]:
+                self._circle_acc += abs(w) * dt
+                if self._circle_acc >= 270.0:  # 270 derece sola donus yayi tamamlandi
                     self._circle_done = True
                     if self.log:
-                        self.log.event(f"DAIRE 360 tamamlandi: {self._circle_acc:.1f} deg")
+                        self.log.event(f"DAIRE 270 tamamlandi: {self._circle_acc:.1f} deg")
 
             if not self._circle_done:
                 self.stab.set_heading_mode("circle")
                 self.stab.set_targets(depth_m=M["target_depth_m"])
+                # Sola donus daire yay: yaw_rate_target = -24.0°/s
                 axes = self.stab.compute(
                     surge=M["circle_throttle"],
-                    yaw_rate_target=M["circle_yaw_rate_dps"])
+                    yaw_rate_target=-abs(M.get("circle_yaw_rate_dps", 24.0)))
                 self._apply(axes)
             else:
+                # 270° sola donus bitti -> h0 - 180° yonune kilitlenip STRAIGHT3'e gec
                 self.stab.set_heading_mode("turn")
                 self.stab.set_targets(depth_m=M["target_depth_m"],
-                                      heading_deg=self._h0 + 180)
+                                      heading_deg=self._h0 - 180)
                 axes = self.stab.compute(surge=0.0)
                 self._apply(axes)
-                if self._turn_done(M) or self._elapsed() > (M["turn_timeout_s"] + 60.0):
+                if self._turn_done(M) or self._elapsed() > (M["turn_timeout_s"] + 15.0):
                     self._circle_prev_t = None
-                    self._enter("STRAIGHT3")
+                    self._enter("PAUSE_STRAIGHT3")
             return False
-        """
 
         # ---- BITIS --------------------------------------------------------
         if s == "FINISH":
@@ -262,7 +259,7 @@ class VideoDemoMission:
             # (Yuzeye cikmak yasak — su altinda duruyoruz.)
             self.stab.set_heading_mode("turn")
             self.stab.set_targets(depth_m=M["target_depth_m"],
-                                  heading_deg=self._h0 - 90)
+                                  heading_deg=self._h0 - 270)
             axes = self.stab.compute(surge=0.0)
             self._apply(axes)
             if self._elapsed() > 3.0:
