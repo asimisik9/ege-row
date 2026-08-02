@@ -59,11 +59,6 @@ class Snapshot:
         for k in self.__slots__:
             setattr(self, k, kw.get(k, 0.0))
 
-        # Vision heading is stored here for the IMU loop to read
-        self.vision_yaw_deg = None
-        self.vision_yaw_age = 999.0
-        self.vision_hz = 0.0
-
 
 class RovState:
     """Sensor thread'lerinin yazdigi, kontrol dongusunun okudugu ortak hafiza."""
