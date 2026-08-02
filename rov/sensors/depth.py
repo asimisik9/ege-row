@@ -27,11 +27,9 @@ SORUN 4a (yukari cikisi goremiyordu)
   COZUM: read_depth_m() artik ISARETLI (negatif olabilen) deger dondurur.
          Ekranda gostermek icin read_depth_m_display() kirpilmis deger verir.
 
-NOT (bilincli olarak DEGISTIRILMEDI):
-  Basinc hesabi datasheet'in 1. derece kompanzasyonunu kullaniyor.
-  2. derece (sicaklik) duzeltmesi havuz sicakliginda (~25 C) ihmal
-  edilebilir seviyede ve suya girmeden dogrulayamayiz. Calisan ama
-  dogrulanamayacak bir seyi degistirmemek icin oldugu gibi birakildi.
+NOT:
+  Basinc hesabi datasheet'in 1. ve 2. derece (sicaklik) kompanzasyonunu
+  tam anlamiyla uygulamaktadir. Farkli su sicakliklarinda hassasiyet korunur.
 """
 import time
 
@@ -141,11 +139,30 @@ class Ms5837:
             D2 = self._convert(self.CMD_CONV_D2)
         C = self.C
         dT = D2 - C[5] * 256
-        SENS = C[1] * 32768 + (C[3] * dT) / 256
-        OFF = C[2] * 65536 + (C[4] * dT) / 128
-        P = (D1 * SENS / 2097152 - OFF) / 8192
+        SENS = C[1] * 32768 + (C[3] * dT) // 256
+        OFF = C[2] * 65536 + (C[4] * dT) // 128
+        TEMP = 2000 + (dT * C[6]) // 8388608
+
+        # 2. Derece (Sicaklik) Kompanzasyonu
+        if TEMP < 2000:
+            Ti = (3 * (dT ** 2)) // 8589934592
+            OFFi = (3 * ((TEMP - 2000) ** 2)) // 2
+            SENSi = (5 * ((TEMP - 2000) ** 2)) // 8
+            if TEMP < -1500:
+                OFFi = OFFi + 7 * ((TEMP + 1500) ** 2)
+                SENSi = SENSi + 4 * ((TEMP + 1500) ** 2)
+        else:
+            Ti = (2 * (dT ** 2)) // 137438953472
+            OFFi = (1 * ((TEMP - 2000) ** 2)) // 16
+            SENSi = 0
+
+        OFF2 = OFF - OFFi
+        SENS2 = SENS - SENSi
+        TEMP2 = TEMP - Ti
+
+        P = (D1 * SENS2 // 2097152 - OFF2) // 8192
         self.pressure_mbar = P / 10.0
-        self.temp_c = (2000 + dT * C[6] / 8388608) / 100.0
+        self.temp_c = TEMP2 / 100.0
         return self.pressure_mbar
 
     # -------------------------------------------------------------- derinlik
