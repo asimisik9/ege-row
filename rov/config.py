@@ -214,6 +214,7 @@ MAG_OFFSET = (0.0, 0.0, 0.0)         # manyetometreyi bosverdik simdilik
 MAG_SCALE  = (1.0, 1.0, 1.0)         # manyetometreyi bosverdik simdilik
 GYRO_BIAS  = (5.677, 0.82, -0.015)   # kalibrasyon ile olculdu
 ACCEL_BIAS = (0.0, 0.0, 0.0)         # ROV hareketsizken calibrate_imu.py ile yeniden olc
+ACCEL_SCALE= (1.0, 1.0, 1.0)         # 6-noktali kalibrasyon ile olculur
 MOUNT_ROLL_DEG = 0.0
 MOUNT_PITCH_DEG = 0.0
 

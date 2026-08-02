@@ -29,9 +29,10 @@ from hal.i2c_lock import I2C_LOCK
 from sensors.ekf import EKF
 
 try:
-    from config import ACCEL_BIAS
+    from config import ACCEL_BIAS, ACCEL_SCALE
 except ImportError:
     ACCEL_BIAS = (0.0, 0.0, 0.0)
+    ACCEL_SCALE = (1.0, 1.0, 1.0)
 
 try:
     from config import ROLL_PITCH_FILTER_ALPHA
@@ -178,7 +179,7 @@ class Mpu9250:
 
     def read_accel_g(self):
         v = self.read_accel_g_raw()
-        return tuple(v[i] - ACCEL_BIAS[i] for i in range(3))
+        return tuple((v[i] - ACCEL_BIAS[i]) * ACCEL_SCALE[i] for i in range(3))
 
     def read_gyro_dps_raw(self):
         """Uc eksen acisal hiz, KALIBRASYONSUZ, derece/sn."""
