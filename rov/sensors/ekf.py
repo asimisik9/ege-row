@@ -21,11 +21,12 @@ class EKF:
         
         # Covariance Matrix (6x6)
         self.P = np.eye(6) * 0.01
+        self.P[3:6, 3:6] = 0.0  # Statik kalibrasyona güvendiğimiz için bias belirsizliğini sıfırla
         
         # Process Noise Covariance (Q)
         self.Q = np.eye(6)
         self.Q[0:3, 0:3] *= (0.01)**2  # Gyro noise
-        self.Q[3:6, 3:6] *= (0.001)**2 # Gyro bias random walk
+        self.Q[3:6, 3:6] *= 0.0        # Dinamik Gyro Bias öğrenmeyi kapat (Yanlış sapma öğrenmesini engeller)
         
         # Measurement Noise Covariance (Accel)
         self.R_acc = np.eye(3) * (0.1)**2 # Accel noise
