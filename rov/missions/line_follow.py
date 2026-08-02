@@ -196,7 +196,12 @@ class LineFollowMission:
 
         # ── MINI ROV BEKLE (operatör)
         if s == "WAIT_MINROV":
-            # Mini ROV manuel moddayken operatör comms.client ile kontrol eder.
+            # Mini ROV gorevini yaparken ana ROV suruklenmemek icin derinlik ve yonunu korur
+            self.stab.set_targets(depth_m=LINE_PIPE_DEPTH, heading_deg=self._locked_hdg)
+            axes = self.stab.compute(surge=0.0)
+            self._apply(axes)
+            
+            # Operatör comms.client ile kontrol eder.
             # signal_minrov_back() cagirilinca ya da timeout dolunca devam et.
             if self._minrov_back.is_set():
                 self._enter("RETRACT")
@@ -207,6 +212,7 @@ class LineFollowMission:
 
         # ── MINI ROV CEK
         if s == "RETRACT":
+            self.thr.stop()   # vinc calisirken motorlari durdur
             self._winch.retract()
             self._enter("ASCEND")
             return False
