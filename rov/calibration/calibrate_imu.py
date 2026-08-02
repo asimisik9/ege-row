@@ -205,12 +205,12 @@ def update_config(gyro_bias, accel_bias, accel_scale, mag_offset, mag_scale):
 
     def replace_tuple(var_name, new_val, content):
         pattern = r"^(" + var_name + r"\s*=\s*)\(?[-\d\.,\s]+\)?"
-        replacement = f"\\1{new_val}"
+        replacement = f"\\g<1>{new_val}"
         return re.sub(pattern, replacement, content, flags=re.MULTILINE)
         
     def replace_float(var_name, new_val, content):
         pattern = r"^(" + var_name + r"\s*=\s*)[-\d\.]+"
-        replacement = f"\\1{new_val}"
+        replacement = f"\\g<1>{new_val}"
         return re.sub(pattern, replacement, content, flags=re.MULTILINE)
 
     text = replace_tuple("GYRO_BIAS", gyro_bias, text)

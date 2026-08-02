@@ -153,49 +153,31 @@ class Mpu9250:
                             "            Heading = sadece jiroskop entegrasyonu (zamanla suruklenebilir).")
         else:
             print("[IMU] config.py'de USE_MAGNETOMETER = False. Manyetometre bypass edildi (Sadece Gyro-Heading).")
-            
-        # --- HIZLI BOOT JIROSKOP KALIBRASYONU (Sıcaklık kaymasını önlemek için) ---
-        self.gyro_bias = list(GYRO_BIAS)
-        self._fast_calibrate_gyro()
-
-    def _fast_calibrate_gyro(self):
-        """Program baslarken (arac hareketsizse) anlik sicaklik icin hizli bias olcumu yapar.
-        Eger aracta titresim varsa bu adim reddedilir ve config.py'deki eski bias kullanilir.
-        """
-        import statistics
-        print("[IMU] Hizli jiroskop kalibrasyonu yapiliyor (2 saniye hareketsiz tutun)...")
-        time.sleep(0.5)
-        xs, ys, zs = [], [], []
-        t0 = time.monotonic()
-        while time.monotonic() - t0 < 2.0:
-            try:
-                g = self.read_gyro_dps_raw()
-                xs.append(g[0]); ys.append(g[1]); zs.append(g[2])
-            except OSError:
-                pass
-            time.sleep(0.02)
-            
-        if len(xs) > 20:
-            std_x, std_y, std_z = statistics.pstdev(xs), statistics.pstdev(ys), statistics.pstdev(zs)
-            if max(std_x, std_y, std_z) < 1.0: # 1.0 dps gurultu siniri
-                self.gyro_bias = [sum(xs)/len(xs), sum(ys)/len(ys), sum(zs)/len(zs)]
-                print(f"[IMU] Hizli Gyro Cal BASARILI! Yeni Bias: ({self.gyro_bias[0]:.2f}, {self.gyro_bias[1]:.2f}, {self.gyro_bias[2]:.2f})")
-            else:
-                print(f"[IMU UYARI] Hareket algilandi (Gürültü > 1dps)! Hizli Gyro Cal REDDEDILDI, config.py kullaniliyor.")
-        else:
-            print("[IMU UYARI] Yeterli ornek alinamadi, config.py kullaniliyor.")
 
     # ------------------------------------------------------------- ham okuma
-    def _read_i16(self, addr, reg, little=False):
-        with I2C_LOCK:
-            hi = self.bus.read_byte_data(addr, reg)
-            lo = self.bus.read_byte_data(addr, reg + 1)
-        raw = (lo << 8 | hi) if little else (hi << 8 | lo)
-        return raw - 65536 if raw > 32767 else raw
+    def _read_i16(self, addr, reg, little=False, retries=3):
+        for attempt in range(retries):
+            try:
+                with I2C_LOCK:
+                    hi = self.bus.read_byte_data(addr, reg)
+                    lo = self.bus.read_byte_data(addr, reg + 1)
+                raw = (lo << 8 | hi) if little else (hi << 8 | lo)
+                return raw - 65536 if raw > 32767 else raw
+            except OSError:
+                if attempt == retries - 1:
+                    raise
+                time.sleep(0.01)
 
-    def _read_block3(self, reg, scale):
-        with I2C_LOCK:
-            d = self.bus.read_i2c_block_data(IMU_ADDR, reg, 6)
+    def _read_block3(self, reg, scale, retries=3):
+        for attempt in range(retries):
+            try:
+                with I2C_LOCK:
+                    d = self.bus.read_i2c_block_data(IMU_ADDR, reg, 6)
+                break
+            except OSError:
+                if attempt == retries - 1:
+                    raise
+                time.sleep(0.01)
         vals = []
         for i in range(3):
             raw = (d[2 * i] << 8) | d[2 * i + 1]
@@ -218,7 +200,7 @@ class Mpu9250:
 
     def read_gyro_dps(self):
         g = self.read_gyro_dps_raw()
-        return tuple(g[i] - self.gyro_bias[i] for i in range(3))
+        return tuple(g[i] - GYRO_BIAS[i] for i in range(3))
 
     def read_mag_ut_raw(self):
         """Uc eksen manyetik alan, KALIBRASYONSUZ, mikroTesla.

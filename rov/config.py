@@ -212,9 +212,9 @@ HEADING_FILTER_ALPHA = 0.995  # Sensor verisi daha yumusak aksin diye artirildi
 ROLL_PITCH_FILTER_ALPHA = 0.995 # Sensor verisi daha yumusak aksin diye artirildi
 MAG_OFFSET = (0.0, 0.0, 0.0)         # manyetometreyi bosverdik simdilik
 MAG_SCALE  = (1.0, 1.0, 1.0)         # manyetometreyi bosverdik simdilik
-GYRO_BIAS  = (5.677, 0.82, -0.015)   # kalibrasyon ile olculdu
-ACCEL_BIAS = (0.0, 0.0, 0.0)         # ROV hareketsizken calibrate_imu.py ile yeniden olc
-ACCEL_SCALE= (1.0, 1.0, 1.0)         # 6-noktali kalibrasyon ile olculur
+GYRO_BIAS  = (-16.1326, 33.3585, 1.2205)   # kalibrasyon ile olculdu
+ACCEL_BIAS = (-0.2111, -1.4059, 0.5003)         # ROV hareketsizken calibrate_imu.py ile yeniden olc
+ACCEL_SCALE= (3.8989, 3.5065, 4.8437)         # 6-noktali kalibrasyon ile olculur
 MOUNT_ROLL_DEG = 0.0
 MOUNT_PITCH_DEG = 0.0
 
