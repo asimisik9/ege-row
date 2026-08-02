@@ -113,7 +113,7 @@ class VideoDemoMission:
             "FINISH": 3.0,
         }
         elapsed = self._elapsed()
-        target_dur = durations.get(self.state, 0.0)
+        target_dur = 1.0 if self.state.startswith("PAUSE_") else durations.get(self.state, 0.0)
         progress = min(100.0, (elapsed / target_dur * 100.0)) if target_dur > 0 else 0.0
         return {
             "step": self.state,
@@ -176,10 +176,21 @@ class VideoDemoMission:
                 self._enter("STRAIGHT1")
             return False
 
+        # ---- PAUSE (HER ADIM SONRASI 1.0s BEKLEME) ------------------------
+        if s.startswith("PAUSE_"):
+            next_st = s.replace("PAUSE_", "")
+            self.stab.set_targets(depth_m=M["target_depth_m"])
+            axes = self.stab.compute(surge=0.0)  # dur, yerinde kal
+            self._apply(axes)
+            if self._elapsed() >= 1.0:  # 1.0 saniye durakla
+                self._enter(next_st)
+            return False
+
         # ---- DUZ GIDISLER -------------------------------------------------
+        # (CIRCLE gecici olarak devre disi — STRAIGHT2 doğrudan TURN2'ye gecer)
         for st, next_st, hdg_off in (("STRAIGHT1", "TURN1", 0),
-                                     ("STRAIGHT2", "CIRCLE", 90),
-                                     ("STRAIGHT3", "TURN2", 180),
+                                     ("STRAIGHT2", "TURN2", 90),
+                                     ("STRAIGHT3", "TURN3", 180),
                                      ("STRAIGHT4", "FINISH", 270)):
             if s == st:
                 self.stab.set_heading_mode("cruise")
@@ -188,12 +199,13 @@ class VideoDemoMission:
                 axes = self.stab.compute(surge=M["cruise_throttle"])
                 self._apply(axes)
                 if self._elapsed() >= M["straight_time_s"]:
-                    self._enter(next_st)
+                    self._enter(f"PAUSE_{next_st}")
                 return False
 
         # ---- 90 DERECE DONUSLER (yerinde) ---------------------------------
         for st, next_st, target_off in (("TURN1", "STRAIGHT2", 90),
-                                        ("TURN2", "STRAIGHT4", 270)):
+                                        ("TURN2", "STRAIGHT3", 180),
+                                        ("TURN3", "STRAIGHT4", 270)):
             if s == st:
                 self.stab.set_heading_mode("turn")
                 self.stab.set_targets(depth_m=M["target_depth_m"],
@@ -201,61 +213,47 @@ class VideoDemoMission:
                 axes = self.stab.compute(surge=0.0)
                 self._apply(axes)
                 if self._turn_done(M):
-                    self._enter(next_st)
+                    self._enter(f"PAUSE_{next_st}")
                 elif self._elapsed() > M["turn_timeout_s"]:
                     if self.log:
                         self.log.event(f"UYARI: {st} zaman asimi "
                                        f"(hata {self.stab.heading_error():.1f} deg)")
-                    self._enter(next_st)
+                    self._enter(f"PAUSE_{next_st}")
                 return False
 
-        # ---- DAIRE --------------------------------------------------------
+        # ---- DAIRE (GECICI OLARAK YORUM SATIRINDA / DEVRE DISI) -----------
+        """
         if s == "CIRCLE":
             now = time.monotonic()
             dt = 0.0 if self._circle_prev_t is None else (now - self._circle_prev_t)
             self._circle_prev_t = now
 
             w = self.stab.snap.yaw_rate if self.stab.snap else 0.0
-            # SORUN 6: ISARETLI toplama + gurultu esigi.
-            # abs() KULLANMA — gurultuyu tur sayar. Esik altini da sayma.
             if not self._circle_done and abs(w) > GYRO_NOISE_DPS:
                 self._circle_acc += w * dt
                 if abs(self._circle_acc) >= M["circle_deg"]:
-                    # Tur tamam. Sayaci DONDUR: bundan sonraki donus artik
-                    # "daire" degil, h0+180'e kilitlenme donusudur. Sayaci
-                    # dondurmezsek log 530 derece gosterir ve H8 kriteri
-                    # (360 +- 10) anlamsiz olur.
                     self._circle_done = True
                     if self.log:
-                        self.log.event(f"DAIRE 360 tamamlandi: "
-                                       f"{self._circle_acc:.1f} deg")
+                        self.log.event(f"DAIRE 360 tamamlandi: {self._circle_acc:.1f} deg")
 
             if not self._circle_done:
-                # Daire kendi yetki moduna gecer: ic dongu DOYMAMALI,
-                # yoksa cap hedefledigimiz degil ulasilabilen deger olur.
                 self.stab.set_heading_mode("circle")
-                # Sabit DONUS HIZI hedefi + sabit ileri gaz.
-                # cap = 2 * ileri_hiz / donus_hizi  (kapali cevrim -> tekrarlanabilir)
                 self.stab.set_targets(depth_m=M["target_depth_m"])
                 axes = self.stab.compute(
                     surge=M["circle_throttle"],
                     yaw_rate_target=M["circle_yaw_rate_dps"])
                 self._apply(axes)
             else:
-                # Tur tamam: cikis heading'ine kilitlen (h0 + 180).
                 self.stab.set_heading_mode("turn")
                 self.stab.set_targets(depth_m=M["target_depth_m"],
                                       heading_deg=self._h0 + 180)
                 axes = self.stab.compute(surge=0.0)
                 self._apply(axes)
-                if self._turn_done(M) or self._elapsed() > (
-                        M["turn_timeout_s"] + 60.0):
-                    if self.log:
-                        self.log.event(f"DAIRE tamam: toplam donus "
-                                       f"{self._circle_acc:.1f} deg")
+                if self._turn_done(M) or self._elapsed() > (M["turn_timeout_s"] + 60.0):
                     self._circle_prev_t = None
                     self._enter("STRAIGHT3")
             return False
+        """
 
         # ---- BITIS --------------------------------------------------------
         if s == "FINISH":
@@ -292,12 +290,5 @@ class VideoDemoMission:
             self.log.sample(self.state, self.stab, axes, self.thr)
 
     def _turn_done(self, M):
-        """Yon hedefe geldi ve settle suresi kadar orada kaldi mi?"""
-        if abs(self.stab.heading_error()) < M["turn_tol_deg"]:
-            if self._settle_t is None:
-                self._settle_t = time.monotonic()
-            elif time.monotonic() - self._settle_t >= M["turn_settle_s"]:
-                return True
-        else:
-            self._settle_t = None
-        return False
+        """Yon hedefe ulastigi an BEKLEMEDEN (aninda) tamamla — fazladan donusu onler."""
+        return abs(self.stab.heading_error()) < M.get("turn_tol_deg", 5.0)
