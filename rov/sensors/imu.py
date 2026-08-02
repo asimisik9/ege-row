@@ -24,7 +24,7 @@ import math
 import time
 
 from config import (I2C_BUS, IMU_ADDR, MAG_ADDR, HEADING_FILTER_ALPHA,
-                    MAG_OFFSET, MAG_SCALE, GYRO_BIAS)
+                    MAG_OFFSET, MAG_SCALE, GYRO_BIAS, USE_MAGNETOMETER)
 from hal.i2c_lock import I2C_LOCK
 
 try:
@@ -130,24 +130,27 @@ class Mpu9250:
 
         # AK8963 magnetometre init — non-fatal (3 deneme)
         self.has_mag = False
-        for attempt in range(3):
-            try:
-                with I2C_LOCK:
-                    self.bus.write_byte_data(MAG_ADDR, self.MAG_CNTL1, 0x16)  # 16bit, 100Hz
-                time.sleep(0.05)
-                self.has_mag = True
-                print(f"[IMU] AK8963 manyetometre aktif (Bus {self._bus_num}).")
-                break
-            except OSError as e:
-                if attempt < 2:
-                    print(f"[IMU] AK8963 deneme {attempt+1}/3 basarisiz (Errno {e.errno}), bekleniyor...")
-                    time.sleep(0.20)
-                else:
-                    print(
-                        f"[IMU UYARI] AK8963 manyetometre erisilemedi (Errno {e.errno}).\n"
-                        "            Olasilik: bypass registeri yazilmadi, kablo sorunu,\n"
-                        "            veya IC donanim hatasi. Gyroskop+ivmeolcer CALISMAYI SURDURUYOR.\n"
-                        "            Heading = sadece jiroskop entegrasyonu (zamanla suruklenebilir).")
+        if USE_MAGNETOMETER:
+            for attempt in range(3):
+                try:
+                    with I2C_LOCK:
+                        self.bus.write_byte_data(MAG_ADDR, self.MAG_CNTL1, 0x16)  # 16bit, 100Hz
+                    time.sleep(0.05)
+                    self.has_mag = True
+                    print(f"[IMU] AK8963 manyetometre aktif (Bus {self._bus_num}).")
+                    break
+                except OSError as e:
+                    if attempt < 2:
+                        print(f"[IMU] AK8963 deneme {attempt+1}/3 basarisiz (Errno {e.errno}), bekleniyor...")
+                        time.sleep(0.20)
+                    else:
+                        print(
+                            f"[IMU UYARI] AK8963 manyetometre erisilemedi (Errno {e.errno}).\n"
+                            "            Olasilik: bypass registeri yazilmadi, kablo sorunu,\n"
+                            "            veya IC donanim hatasi. Gyroskop+ivmeolcer CALISMAYI SURDURUYOR.\n"
+                            "            Heading = sadece jiroskop entegrasyonu (zamanla suruklenebilir).")
+        else:
+            print("[IMU] config.py'de USE_MAGNETOMETER = False. Manyetometre bypass edildi (Sadece Gyro-Heading).")
 
     # ------------------------------------------------------------- ham okuma
     def _read_i16(self, addr, reg, little=False):
