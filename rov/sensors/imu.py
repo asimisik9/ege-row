@@ -24,7 +24,7 @@ import math
 import time
 
 from config import (I2C_BUS, IMU_ADDR, MAG_ADDR, HEADING_FILTER_ALPHA,
-                    MAG_OFFSET, MAG_SCALE, GYRO_BIAS, USE_MAGNETOMETER)
+                    MAG_OFFSET, MAG_SCALE, GYRO_BIAS, GYRO_SCALE, USE_MAGNETOMETER)
 from hal.i2c_lock import I2C_LOCK
 from sensors.ekf import EKF
 
@@ -200,7 +200,7 @@ class Mpu9250:
 
     def read_gyro_dps(self):
         g = self.read_gyro_dps_raw()
-        return tuple(g[i] - GYRO_BIAS[i] for i in range(3))
+        return tuple((g[i] - GYRO_BIAS[i]) * GYRO_SCALE[i] for i in range(3))
 
     def read_mag_ut_raw(self):
         """Uc eksen manyetik alan, KALIBRASYONSUZ, mikroTesla.
