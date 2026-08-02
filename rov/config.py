@@ -241,8 +241,8 @@ GCS_WS_PORT   = 8080         # Canli Telemetri / WebSocket Portu
 JOYSTICK_PORT = 12345        # PS3 Joystick TCP Sunucu Portu
 
 # ---------------------------------------------------------------- kamera
-# CSI: Jetson Orin Nano / Xavier NX uzerinde RPi Camera v2.1
-# USB: Fallback / test icin USB webcam
+# Kullanici kameranin calismadigini ve devre disi birakilmasini istedi.
+USE_VISION   = False         # True: Kamera ve Goruntu isleme aktif, False: Tamamen kapali
 CSI_CAMERA   = True          # True: CSI (GStreamer), False: USB (/dev/video0)
 CAM_WIDTH    = 1280
 CAM_HEIGHT   = 720

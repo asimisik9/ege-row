@@ -107,10 +107,15 @@ def build_system():
             depth_sensor = MockDepth()
             
         try:
-            cam = Camera()
-            cam.start()
-            grid_trk = GridTracker()
-            print("[OK] Vision Grid Tracker aktif.")
+            if getattr(config, "USE_VISION", False):
+                cam = Camera()
+                cam.start()
+                grid_trk = GridTracker()
+                print("[OK] Vision Grid Tracker aktif.")
+            else:
+                cam = None
+                grid_trk = None
+                print("[VISION] Kamera kapali (config.USE_VISION = False).")
         except Exception as e:
             print(f"[UYARI] Kamera veya GridTracker baslatilamadi: {e}")
             cam = None
