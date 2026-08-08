@@ -22,6 +22,10 @@ Gorev 1 degerlendirme (sartnameden):
 import time
 import threading
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import (LOOP_HZ, MISSION, LINE_TARGET_DEPTH, LINE_PIPE_DEPTH,
                     LINE_CRUISE_SURGE, LINE_APPROACH_SURGE,
                     VISION_KP, VISION_MAX_YAW, PIPE_ALIGN_TOL)
@@ -133,8 +137,7 @@ class LineFollowMission:
                     self._enter("APPROACH_PIPE")
                     return False
 
-            self.stab.set_targets(depth_m=LINE_TARGET_DEPTH,
-                                  heading_deg=self.stab.ori.heading)  # heading'i tut
+            self.stab.set_targets(depth_m=LINE_TARGET_DEPTH, heading_deg=None)
             axes = self.stab.compute(surge=surge, yaw_override=yaw)
             self._apply(axes)
             return False
@@ -148,8 +151,8 @@ class LineFollowMission:
                 # Boru yeterince buyuk: hizalamaya gec
                 self._enter("ALIGN_PIPE")
                 return False
-            # Yaklasma: yavaş surge
-            self.stab.set_targets(depth_m=LINE_PIPE_DEPTH)
+            # Yaklasma: yavaş surge (Aciyi sabitle)
+            self.stab.set_targets(depth_m=LINE_PIPE_DEPTH, heading_deg=self._locked_hdg)
             axes = self.stab.compute(surge=LINE_APPROACH_SURGE)
             self._apply(axes)
             if self._elapsed() > self._PIPE_ALIGN_TIMEOUT:
@@ -173,8 +176,10 @@ class LineFollowMission:
                 if pipe.aligned or self._elapsed() > self._PIPE_ALIGN_TIMEOUT:
                     self._enter("DEPLOY")
             else:
-                # Boru gorunmuyor: dur ve bekle
-                self.stab.set_targets(depth_m=LINE_PIPE_DEPTH)
+                # Boru gorunmuyor: aciyi kilitle, dur ve bekle
+                if self._locked_hdg is None:
+                    self._locked_hdg = self.stab.ori.heading or 0.0
+                self.stab.set_targets(depth_m=LINE_PIPE_DEPTH, heading_deg=self._locked_hdg)
                 axes = self.stab.compute(surge=0.0)
                 self._apply(axes)
                 if self._elapsed() > self._PIPE_ALIGN_TIMEOUT:
@@ -191,7 +196,12 @@ class LineFollowMission:
 
         # ── MINI ROV BEKLE (operatör)
         if s == "WAIT_MINROV":
-            # Mini ROV manuel moddayken operatör comms.client ile kontrol eder.
+            # Mini ROV gorevini yaparken ana ROV suruklenmemek icin derinlik ve yonunu korur
+            self.stab.set_targets(depth_m=LINE_PIPE_DEPTH, heading_deg=self._locked_hdg)
+            axes = self.stab.compute(surge=0.0)
+            self._apply(axes)
+            
+            # Operatör comms.client ile kontrol eder.
             # signal_minrov_back() cagirilinca ya da timeout dolunca devam et.
             if self._minrov_back.is_set():
                 self._enter("RETRACT")
@@ -202,6 +212,7 @@ class LineFollowMission:
 
         # ── MINI ROV CEK
         if s == "RETRACT":
+            self.thr.stop()   # vinc calisirken motorlari durdur
             self._winch.retract()
             self._enter("ASCEND")
             return False
@@ -224,6 +235,11 @@ class LineFollowMission:
         self.state = state
         self._t0 = time.monotonic()
         self._line_lost_t = None
+        if state in ("APPROACH_PIPE", "WAIT_MINROV"):
+            self._locked_hdg = self.stab.ori.heading or 0.0
+        elif state == "ALIGN_PIPE":
+            self._locked_hdg = None  # kaybedilirse o anki acida kitlensin diye sifirla
+
         print(f"[GOREV1] → {state}")
         if self.log:
             self.log.event(f"STATE -> {state}")

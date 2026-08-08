@@ -37,7 +37,9 @@ I2C_BUS  = 7            # i2cdetect çıktısına göre
 FLUID_DENSITY = 997     # havuz (997) veya deniz (1025)
 ```
 
-### 2c. IMU kalibrasyonu (ilk kullanımdan önce bir kez)
+### 2c. IMU ve ESC Kalibrasyonu (İlk Kullanımdan Önce Bir Kez)
+
+#### 1) IMU Kalibrasyonu
 ```bash
 cd ege-row/rov
 python3 calibrate_imu.py
@@ -47,17 +49,28 @@ Adımlar:
 2. ROV elinle yavaşça her yöne çevir (15 sn) → manyetometre kalibrasyonu
 3. `config.py` otomatik güncellenir, eski hali `config.py.bak` olarak yedeklenir.
 
+#### 2) ESC Nötr & Gaz Kalibrasyonu (Motor Titremesi ve Bip Seslerini Kesme)
+Eğer ESC'ler kendi kendine bip sesi çıkarıyor, titriyor veya nötr sinyali 1700us/1670us gibi kayma yapıyorsa:
+```bash
+python3 calibrate_escs.py
+```
+Adımlar:
+1. Pervaneleri sökün ve ESC güç fişini çekin.
+2. Komutu çalıştırın → Jetson 2000us (Max Gaz) gönderecektir.
+3. ESC bataryasını takın → Yüksek bip seslerini duyunca sistem otomatik olarak 1000us (Min Gaz) ve 1500us (Sabit Nötr) göndererek ESC EEPROM hafızasına tam 1500us nötr ayarını kilitleyecektir.
+
 ### 2d. Motor testi (pervane takmadan)
 ```bash
 python3 main.py --test-motors
 ```
 Her motor 2 sn %10 güçte döner. Doğru yön yoksa `config.py`'de `MOTOR_DIRECTION` düzelt.
 
-### 2e. E-stop GPIO testi
+### 2e. Sensörsüz Manuel Sürüş (Sensörler Takılı Değilse)
+HİÇBİR sensör (IMU, Derinlik, Kamera vb.) takılı değilken aracı sadece motorlarla sürmek için:
 ```bash
-python3 main.py --estop-test
+python3 manual_drive.py           # Veya: python3 main.py --manual
 ```
-`e` + Enter → yazılımsal tetikleme. Tüm motorlar durmalı. Donanımda mıknatısla test et.
+Bu modda Web GCS (`http://192.168.1.10:8000/`), PS3 Joystick ve Terminal klavye sürüşü aktiftir.
 
 ---
 

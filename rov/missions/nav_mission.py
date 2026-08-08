@@ -24,6 +24,10 @@ Sartnameden:
 import math
 import time
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import (LOOP_HZ, MISSION, NAV_TARGET_DEPTH, NAV_CRUISE_SURGE,
                     BUOY_ORBIT_RADIUS_M, BUOY_ORBIT_SPEED, BUOY_ORBIT_YAW,
                     BUOY_ORBIT_DEG, GPS_TIMEOUT_S, VISION_KP, VISION_MAX_YAW)
@@ -78,6 +82,8 @@ class NavMission:
         # Gercek parkur koordinatlari saha testinde girilir
         self._target_dist_m = 20.0  # tahmini alan mesafesi (m)
 
+        self._locked_hdg = None
+
     # ---------------------------------------------------------------- public
     def start(self):
         self.stab.depth.zero_at_surface()
@@ -123,9 +129,8 @@ class NavMission:
         # ── HEDEF BOLGEYE ILERLE
         if s == "NAVIGATE_TO_ZONE":
             surge = NAV_CRUISE_SURGE
-            heading = self.stab.ori.heading or 0.0
             self.stab.set_targets(depth_m=NAV_TARGET_DEPTH,
-                                  heading_deg=heading)  # heading'i tut
+                                  heading_deg=self._locked_hdg)  # heading'i tut
             axes = self.stab.compute(surge=surge)
             dist = self._dr.distance_to(0.0, self._target_dist_m)
             self._apply(axes, surge)
@@ -177,9 +182,8 @@ class NavMission:
                 self._enter("ORBIT_BUOY")
             else:
                 # Yaklas
-                heading = self.stab.ori.heading or 0.0
                 self.stab.set_targets(depth_m=NAV_TARGET_DEPTH,
-                                      heading_deg=heading)
+                                      heading_deg=self._locked_hdg)
                 axes = self.stab.compute(surge=NAV_CRUISE_SURGE * 0.5)
                 self._apply(axes, NAV_CRUISE_SURGE * 0.5)
             return False
@@ -211,10 +215,8 @@ class NavMission:
 
         # ── CIKIS BOLGESINE GIT
         if s == "EXIT_ZONE":
-            # Kose samandiralarindan cikis merkezi hesaplanir (basit: geri don)
-            # Baslangic heading'e gore 180° don ve ayni mesafe ilerle
-            tgt_hdg = (self.stab.ori.heading + 180.0) % 360.0
-            self.stab.set_targets(depth_m=NAV_TARGET_DEPTH, heading_deg=tgt_hdg)
+            # Hedef baslangic aninda kilitlendi, sadece onu takip et
+            self.stab.set_targets(depth_m=NAV_TARGET_DEPTH, heading_deg=self._locked_hdg)
             axes = self.stab.compute(surge=NAV_CRUISE_SURGE)
             self._apply(axes, NAV_CRUISE_SURGE)
             dist_home = self._dr.distance_to(0.0, 0.0)
@@ -239,6 +241,12 @@ class NavMission:
     def _enter(self, state):
         self.state = state
         self._t0 = time.monotonic()
+        # Duruma girerken kullanilacak aciyi kilitler
+        if state in ("NAVIGATE_TO_ZONE", "APPROACH_BUOY"):
+            self._locked_hdg = self.stab.ori.heading or 0.0
+        elif state == "EXIT_ZONE":
+            self._locked_hdg = ((self.stab.ori.heading or 0.0) + 180.0) % 360.0
+
         # Orbit ve tarama durumu sifirla
         if state == "SONAR_SCAN":
             self._scan_start_hdg = None
@@ -252,7 +260,10 @@ class NavMission:
         return time.monotonic() - self._t0
 
     def _apply(self, axes, surge):
-        self._dr.update(self.stab.ori.heading or 0.0, surge)
+        pitch = 0.0
+        if self.stab.snap is not None:
+            pitch = self.stab.snap.pitch
+        self._dr.update(self.stab.heading_deg or 0.0, pitch, surge)
         self.thr.command(mix(**axes))
         if self.log:
             self.log.sample(self.state, self.stab, axes)

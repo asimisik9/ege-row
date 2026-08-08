@@ -48,10 +48,22 @@ class JoystickClient:
     def read_axes(self) -> Optional[Dict[str, float]]:
         """
         Son gecerli eksen komutlarini dondurur.
-        {"surge": float, "yaw": float, "heave": 0.0, "roll": 0.0, "pitch": 0.0}
+        {"surge": float, "yaw": float, "heave": float, "roll": 0.0, "pitch": 0.0}
+        Kol bagli degilse None doner.
         """
         with self._lock:
             return self._axes.copy() if self._axes is not None else None
+
+    def is_active(self, threshold: float = 1e-3) -> bool:
+        """Kol bagli VE herhangi bir eksen merkezden sapmis mi?
+
+        manual_drive.py kaynak onceligi icin sart: kol bagli ama bosta iken
+        True donerse Web GCS ve klavye komutlari susturulur.
+        """
+        axes = self.read_axes()
+        if axes is None:
+            return False
+        return any(abs(v) > threshold for v in axes.values())
 
     # ---------------------------------------------------------------- private
     def _loop(self):
@@ -77,11 +89,13 @@ class JoystickClient:
                             msg = json.loads(line.decode('utf-8'))
                             fb = float(msg.get("forward_back", 0.0))
                             lr = float(msg.get("left_right", 0.0))
+                            # up_down: + = yuksel. mixer'da heave: + = dal -> isaret ters cevrilir.
+                            ud = float(msg.get("up_down", 0.0))
                             with self._lock:
                                 self._axes = {
                                     "surge": fb,
                                     "yaw": lr,
-                                    "heave": 0.0,
+                                    "heave": -ud,
                                     "roll": 0.0,
                                     "pitch": 0.0
                                 }

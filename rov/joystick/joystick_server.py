@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 """
 ROV Control Server
 Reads PS3 joystick input and converts to PWM signals for ROV thrusters.
@@ -18,10 +22,16 @@ from typing import Tuple, Optional
 
 # Centralized config import
 try:
-    from config import PWM_NEUTRAL_US, PWM_MIN_US, PWM_MAX_US, PWM_DEADBAND_US
+    from config import (PWM_NEUTRAL_US, PWM_MIN_US, PWM_MAX_US, PWM_DEADBAND_US,
+                        JOYSTICK_PORT)
 except ImportError:
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-    from config import PWM_NEUTRAL_US, PWM_MIN_US, PWM_MAX_US, PWM_DEADBAND_US
+    from config import (PWM_NEUTRAL_US, PWM_MIN_US, PWM_MAX_US, PWM_DEADBAND_US,
+                        JOYSTICK_PORT)
+
+# PS3 sag analog dikey ekseni -> dikey iticiler (heave).
+# Bazi surucularde sag stick Y ekseni 3, bazilarinda 4 olarak gorunur.
+HEAVE_AXIS = 3
 
 class ROVServer:
     def __init__(self, port: int = 12345):
@@ -231,6 +241,12 @@ def main():
     PWM_NEUTRAL = PWM_NEUTRAL_US
     DEADZONE = 0.1
 
+    def read_heave(js):
+        """Sag stick dikey ekseni -> up_down. Pozitif = YUKSEL, negatif = DAL."""
+        if js is None or js.get_numaxes() <= HEAVE_AXIS:
+            return 0.0
+        return -js.get_axis(HEAVE_AXIS)  # stick yukari itilince +1
+
     def apply_deadzone(val):
         return 0.0 if abs(val) < DEADZONE else val
 
@@ -243,10 +259,10 @@ def main():
     # Start TCP server
     srv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    srv_sock.bind(('0.0.0.0', 12345))
+    srv_sock.bind(('0.0.0.0', JOYSTICK_PORT))
     srv_sock.listen(1)
     srv_sock.settimeout(0.1)
-    print("TCP server listening on 0.0.0.0:12345")
+    print(f"TCP server listening on 0.0.0.0:{JOYSTICK_PORT}")
 
     client_sock = None
     client_addr = None
@@ -275,12 +291,12 @@ def main():
                         joystick = None  # still disconnected
                 forward_back = 0.0
                 left_right = 0.0
+                up_down = 0.0
             else:
                 pygame.event.pump()
-                forward_back = -joystick.get_axis(1)
-                left_right = joystick.get_axis(0)
-                forward_back = apply_deadzone(forward_back)
-                left_right = apply_deadzone(left_right)
+                forward_back = apply_deadzone(-joystick.get_axis(1))
+                left_right = apply_deadzone(joystick.get_axis(0))
+                up_down = apply_deadzone(read_heave(joystick))
 
             # Differential mix
             left_speed = max(-1.0, min(1.0, forward_back + left_right))
@@ -290,8 +306,8 @@ def main():
 
             # Print every 0.5 seconds
             if time.time() - last_print_time > 0.5:
-                print(f"F/B: {forward_back:6.3f}, L/R: {left_right:6.3f} -> "
-                      f"Left: {left_pwm:4d}, Right: {right_pwm:4d}")
+                print(f"F/B: {forward_back:6.3f}, L/R: {left_right:6.3f}, "
+                      f"U/D: {up_down:6.3f} -> Left: {left_pwm:4d}, Right: {right_pwm:4d}")
                 last_print_time = time.time()
 
             # Send to client if connected
@@ -301,7 +317,8 @@ def main():
                     "left_motor_pwm": left_pwm,
                     "right_motor_pwm": right_pwm,
                     "forward_back": round(forward_back, 3),
-                    "left_right": round(left_right, 3)
+                    "left_right": round(left_right, 3),
+                    "up_down": round(up_down, 3),   # + = yuksel, - = dal
                 }
                 msg = json.dumps(payload) + "\n"
                 try:

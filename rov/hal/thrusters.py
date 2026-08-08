@@ -8,8 +8,23 @@ Backend degistirilebilir:
 Guvenlik: arm edilmeden komut gonderilmez; stop() her kosulda notre ceker.
 """
 import time
+import config
 from config import (MOTOR_CHANNELS, PWM_NEUTRAL_US, PWM_MIN_US, PWM_MAX_US,
-                    PWM_DEADBAND_US, SLEW_RATE)
+                    PWM_DEADBAND_US, SLEW_RATE, FREQ_HZ,
+                    ESC_ABS_MIN_US, ESC_ABS_MAX_US)
+
+# config.py'de yanlis bir PWM_RANGE_US yazilirsa (orn. notrden sapma yerine
+# toplam genislik girilirse) PWM_MIN/MAX ESC'nin anlamadigi degerlere kayar.
+# Import aninda yakala - suya girdikten sonra degil.
+if not (ESC_ABS_MIN_US <= PWM_MIN_US < PWM_NEUTRAL_US < PWM_MAX_US <= ESC_ABS_MAX_US):
+    raise ValueError(
+        f"config.py PWM ayarlari ESC araliginin disinda!\n"
+        f"  hesaplanan: {PWM_MIN_US}..{PWM_NEUTRAL_US}..{PWM_MAX_US} us\n"
+        f"  ESC siniri: {ESC_ABS_MIN_US}..{ESC_ABS_MAX_US} us\n"
+        f"  PWM_RANGE_US notrden TEK YONDEKI sapmadir, toplam genislik degil.\n"
+        f"  Notr {PWM_NEUTRAL_US} icin en fazla "
+        f"{min(PWM_NEUTRAL_US - ESC_ABS_MIN_US, ESC_ABS_MAX_US - PWM_NEUTRAL_US)} olabilir."
+    )
 
 
 # ------------------------------------------------------------ backendler
@@ -25,25 +40,25 @@ class MockBackend:
 
 
 class PCA9685Backend:
-    """Adafruit PCA9685 (I2C). Kurulum (Jetson):
-        pip3 install adafruit-circuitpython-pca9685 adafruit-blinka
-    I2C baglantisi: PCA9685 -> Jetson pin 3 (SDA), pin 5 (SCL), 3.3V, GND
+    """PCA9685 PWM karti (I2C). Kurulum (Jetson): pip3 install smbus2
+
+    I2C baglantisi: PCA9685 -> Jetson pin 3 (SDA), pin 5 (SCL), pin 6 (GND)
+                    + VCC pin 1 (3.3V) ya da pin 2 (5V)  <- lojik besleme SART
+
+    Baglanti hal/i2c.py uzerinden BUS NUMARASI ile kurulur; board.SCL/board.SDA
+    (Blinka) yanlis busu sectigi icin "pin yok / cihaz yok" hatasi veriyordu.
+    Teshis: python3 i2c_tara.py
     """
-    def __init__(self, freq_hz=50, address=0x40):
-        """I2C uzerinden PCA9685 karti ile baglanti kurar ve PWM frekansini
-        (standart ESC icin 50Hz) ayarlar."""
-        import board, busio
-        from adafruit_pca9685 import PCA9685
-        i2c = busio.I2C(board.SCL, board.SDA)
-        self.dev = PCA9685(i2c, address=address)
-        self.dev.frequency = freq_hz
-        self.period_us = 1_000_000 / freq_hz
+    def __init__(self, freq_hz=FREQ_HZ, address=0x40, bus_num=None):
+        """PCA9685 karti ile baglanti kurar ve PWM frekansini (standart ESC
+        icin 50Hz) ayarlar. bus_num verilmezse config.I2C_BUS'tan baslayarak
+        tum olasi I2C buslari denenir."""
+        from hal.i2c import pca9685_ac
+        self.dev = pca9685_ac(bus_num=bus_num, address=address, freq_hz=freq_hz)
 
     def set_us(self, channel, us):
-        """Mikrosaniye cinsinden PWM darbe genisligini PCA9685'in 16-bit
-        duty-cycle degerine cevirip ilgili kanala yazar."""
-        duty = int(us / self.period_us * 0xFFFF)
-        self.dev.channels[channel].duty_cycle = duty
+        """Mikrosaniye cinsinden PWM darbe genisligini ilgili kanala yazar."""
+        self.dev.set_us(channel, us)
 
 
 # ------------------------------------------------------------ ana sinif
@@ -54,6 +69,7 @@ class Thrusters:
         self.backend = backend
         self.armed = False
         self._current = {name: 0.0 for name in MOTOR_CHANNELS}  # slew icin
+        self._last_us = {name: None for name in MOTOR_CHANNELS} # redundant I2C onleme
         self._last_t = time.monotonic()
         self.stop()
 
@@ -80,7 +96,8 @@ class Thrusters:
         now = time.monotonic()
         dt = min(0.1, now - self._last_t)
         self._last_t = now
-        max_step = SLEW_RATE * dt
+        # SLEW_RATE canli okunur (yer istasyonundan degistirilebilir)
+        max_step = getattr(config, "SLEW_RATE", SLEW_RATE) * dt
 
         for name, target in motor_dict.items():
             target = max(-1.0, min(1.0, target))
@@ -94,11 +111,25 @@ class Thrusters:
     # ---- yardimcilar ----
     @staticmethod
     def _to_us(value):
-        """-1..+1 -> PWM us. config.py'deki PWM_NEUTRAL_US etrafında simetrik ölçekler."""
-        us = PWM_NEUTRAL_US + value * (PWM_MAX_US - PWM_NEUTRAL_US)
+        """-1..+1 -> PWM us. config.py'deki PWM limitlerine gore simetrik veya asimetrik ölçekler."""
+        if value > 0:
+            us = PWM_NEUTRAL_US + value * (PWM_MAX_US - PWM_NEUTRAL_US)
+        else:
+            us = PWM_NEUTRAL_US + value * (PWM_NEUTRAL_US - PWM_MIN_US)
         if abs(us - PWM_NEUTRAL_US) < PWM_DEADBAND_US:
             us = PWM_NEUTRAL_US
-        return int(max(PWM_MIN_US, min(PWM_MAX_US, us)))
+        us = max(PWM_MIN_US, min(PWM_MAX_US, us))
+        # son emniyet: hicbir kosulda ESC'nin fiziksel sinirlarini asma
+        return int(max(ESC_ABS_MIN_US, min(ESC_ABS_MAX_US, us)))
 
     def _write_us(self, name, us):
+        """Motor ismine gore kanali bulur ve surucuye iletir."""
+        if name not in MOTOR_CHANNELS:
+            return
+        
+        us = max(PWM_MIN_US, min(PWM_MAX_US, us))
+        if self._last_us.get(name) == us:
+            return  # deger degismediyse I2C'yi mesgul etme (gurultu/veri yolu yuku azaltimi)
+            
+        self._last_us[name] = us
         self.backend.set_us(MOTOR_CHANNELS[name], us)
